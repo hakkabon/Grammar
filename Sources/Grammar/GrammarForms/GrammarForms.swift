@@ -1,0 +1,35 @@
+//
+//  GrammarForms.swift
+//  Grammar
+//
+//  Created by Ulf Akerstedt-Inoue on 2025/10/19.
+//  Copyright © 2025 hakkabon software. All rights reserved.
+//
+
+import Foundation
+
+public extension Grammar {
+    
+    /// Returns true, if the grammar is in chomsky normal form.
+    ///
+    /// A grammar is in chomsky normal form if all productions satisfy one of the following conditions:
+    /// - A production generates exactly one terminal symbol
+    /// - A production generates exactly two non-terminal symbols
+    /// - A production generates an empty string and is generated from the start non-terminal
+    var isInChomskyNormalForm: Bool {
+        return productions.allSatisfy { production -> Bool in
+            (production.isFinal && production.rule.count == 1)
+            || (!production.isFinal && production.generatedNonTerminals.count == 2 && production.generatedTerminals.count == 0)
+            || (production.rule.isEmpty && production.goal == start)
+        }
+    }
+
+    var isInGreilbachForm: Bool {
+        return false
+    }
+
+    /// If and only if there are no meta symbols left in the productions.
+    var isInStandardNotation: Bool {
+        return true
+    }
+}

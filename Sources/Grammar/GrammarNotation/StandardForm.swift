@@ -1,0 +1,296 @@
+//
+//  StandardForm.swift
+//  Grammar
+//
+//  Created by Ulf Akerstedt-Inoue on 2023/09/06.
+//  Copyright © 2023 hakkabon software. All rights reserved.
+//
+
+import Foundation
+import OSLog
+
+/// Transforms an extended BNF grammar into Standard notation (BNF).
+/// Grammars containing ebnf constructs, such as
+/// ```
+///   - { ... }     (repetition, zero or many times)
+///   - [ ... ]     (optional)
+///   - ( ... )     (grouping of terms)
+///   - |           (choice or alternation)
+/// ```
+/// are transformed into CFG Standard notation (plain BNF notation) in four steps.
+/// These four steps, in the given order, are in short
+/// ```
+///   - reduceGroupings()
+///   - reduceOptions()
+///   - reduceRepetitions()
+///   - rewriteAlternations()
+/// ```
+/// Precondition:
+/// The grammar must be in flat form, just as you would write the production rules on paper,
+/// not containing any constructs containing the extended notation.
+///
+/// Note:
+/// The structured rewriting on extended BNF notation is found elesewhere, namely in ``
+
+extension Grammar {
+    
+    /// Transforms an extended BNF grammars into Standard notation, plain BNF notation.
+    ///
+    /// - Returns: all productions reduced to BNF and all newly generated non-terminals.
+    public func rewriteToStandardForm() -> ([Production], Set<NonTerminal>) {
+        var nonTerminals = self.nonTerminals // these will increase when rewriting from EBNF to BNF.
+        var generatedNonTerminals = Set<NonTerminal>()
+        var rewritten: [Production] = []
+        
+        for production in self.productions {
+            // First rewrite all pairs of meta-symbols contained in production.
+            let (newProductions, newNonTerminals) = reduceMetaSymbols(in: production, nonTerminals: nonTerminals)
+            rewritten.append(contentsOf: newProductions)
+            nonTerminals = nonTerminals.union(newNonTerminals)
+            generatedNonTerminals = generatedNonTerminals.union(newNonTerminals)
+
+            // Then split production rules at `MetaSymbol.alt`.
+            rewritten = rewriteAlternations(for: rewritten)
+            nonTerminals = nonTerminals.union(generatedNonTerminals)
+        }
+        return (rewritten, generatedNonTerminals)
+    }
+
+    /// Reduce EBNF notation to BNF.
+    /// - Parameters:
+    ///   - production: production to be reduced to BNF notation.
+    ///   - nonTerminals: current valid set of non-terminals.
+    /// - Returns: production reduced to BNF and all generated new non-terminals.
+    func reduceMetaSymbols(in production: Production, nonTerminals: Set<NonTerminal>) -> ([Production], Set<NonTerminal>) {
+        var nonTerminals = nonTerminals // will increase when rewriting from EBNF to BNF.
+        var generatedNonTerminals = Set<NonTerminal>()
+        var reduced: [Production] = []
+        var worklist = [production]
+
+        while worklist.count > 0 {
+            let p = worklist.removeFirst()
+            switch matchingSymbols(symbols: p.rule) {
+            case let .grouping(slice: slice, range: range):
+                let (newProductions, newNonTerminals) = reduceGroupings(in: slice, in: range, with: nonTerminals, in: p)
+                worklist.append(contentsOf: newProductions)
+                nonTerminals = nonTerminals.union(newNonTerminals)
+                generatedNonTerminals = generatedNonTerminals.union(newNonTerminals)
+            case let .option(slice: slice, range: range):
+                let (newProductions, newNonTerminals) = reduceOptions(in: slice, in: range, with: nonTerminals, in: p)
+                worklist.append(contentsOf: newProductions)
+                nonTerminals = nonTerminals.union(newNonTerminals)
+                generatedNonTerminals = generatedNonTerminals.union(newNonTerminals)
+            case let .repetition(slice: slice, range: range):
+                let (newProductions, newNonTerminals) = reduceRepetitions(in: slice, in: range, with: nonTerminals, in: p)
+                worklist.append(contentsOf: newProductions)
+                nonTerminals = nonTerminals.union(newNonTerminals)
+                generatedNonTerminals = generatedNonTerminals.union(newNonTerminals)
+            default:
+                // collect the reduced productions
+                // if no reduction could be applied, just make a copy
+                reduced.append(p)
+            }
+        }
+        return (reduced, generatedNonTerminals)
+    }
+
+    /// Rerwite productions that contain grouping constructs of the form
+    /// A → α(X1...Xn)β using the following algorithm:
+    ///
+    /// foreach p ∈ P of the form A → α(X1...Xn)β do
+    ///   N ← NewNonterminal()
+    ///   p ← A → α N β
+    ///   P ← P ∪ { N → X1...Xn }
+    func reduceGroupings(in slice: [Symbol], in range: Range<Int>, with nonTerminals: Set<NonTerminal>, in production: Production) -> ([Production],Set<NonTerminal>) {
+        var nonTerminals = nonTerminals
+
+        let N = generateNonterminal(withPrefix: production.goal.name, nonTerminals: nonTerminals)
+        nonTerminals.insert(N)
+
+        // p ← A → α N β (modify production)
+        let p = modifyProduction(production, with: N, in: range)
+        Logger.grammar.info("inserted \(N) in range \(range) in production 'A → α N β' \(p)")
+
+        let p1 = Production(goal: N, rule: slice)
+        Logger.grammar.info("generated production 'N → X1...Xn' \(p1)")
+
+        return ([p, p1], Set(arrayLiteral: N))
+    }
+
+    /// Rerwite productions that contain option constructs of the form
+    /// A → α[X1...Xn]β using the following algorithm:
+    ///
+    /// foreach p ∈ P of the form A → α[X1...Xn]β do
+    ///   N ← NewNonterminal()
+    ///   p ← A → α N β
+    ///   P ← P ∪ { N → X1...Xn }
+    ///   P ← P ∪ { N → ε }
+    func reduceOptions(in slice: [Symbol], in range: Range<Int>, with nonTerminals: Set<NonTerminal>, in production: Production) -> ([Production],Set<NonTerminal>) {
+        var nonTerminals = nonTerminals
+        let epsilon: Symbol = .terminal(.meta(epsilon))   // typically 'ε' or ''
+
+        let N = generateNonterminal(withPrefix: production.goal.name, nonTerminals: nonTerminals)
+        nonTerminals.insert(N)
+
+        // p ← A → α N β (modify production)
+        let p = modifyProduction(production, with: N, in: range)
+        Logger.grammar.info("inserted \(N) in range \(range) in production 'A → α N β' \(p)")
+
+        let p1 = Production(goal: N, rule: slice)
+        Logger.grammar.info("generated production 'N → X1...Xn' \(p1)")
+        let p2 = Production(goal: N, rule: [epsilon])   // empty rule: [] or [.eps] or [.blank]
+        Logger.grammar.info("generated production 'N → ε' \(p2)")
+
+        return ([p, p1, p2], Set(arrayLiteral: N))
+    }
+    
+    /// Rerwite productions that contain repetition constructs of the form
+    /// A → γ{X1...Xm}δ using the following algorithm:
+    ///
+    /// foreach p ∈ P of the form A → γ{X1...Xm}δ do
+    ///   N ← NewNonterminal()
+    ///   p ← A → γ N δ
+    ///   P ← P ∪ { N → X1...Xn N }
+    ///   P ← P ∪ { N → ε }
+    func reduceRepetitions(in slice: [Symbol], in range: Range<Int>, with nonTerminals: Set<NonTerminal>, in production: Production) -> ([Production], Set<NonTerminal>) {
+        var nonTerminals = nonTerminals
+        let epsilon: Symbol = .terminal(.meta(epsilon))   // typically 'ε' or ''
+
+        let N = generateNonterminal(withPrefix: production.goal.name, nonTerminals: nonTerminals)
+        nonTerminals.insert(N)
+            
+        // p ← A → γ N δ (modify production)
+        let p = modifyProduction(production, with: N, in: range)
+        Logger.grammar.info("inserted \(N) in range \(range) in production A → γ N δ: \(p)")
+
+        let p1 = Production(goal: N, rule: slice + [Symbol.nonTerminal(N)])
+        Logger.grammar.info("generated production N → X1...Xn N: \(p1)")
+        let p2 = Production(goal: N, rule: [epsilon])    // empty rule: [] or [.eps] or [.blank]
+        Logger.grammar.info("generated production N → ε: \(p2)")
+
+        return ([p, p1, p2], Set(arrayLiteral: N))
+    }
+    
+    /// Rerwite productions that contain repetitions constructs of the form
+    /// A → α | β ··· | ζ by repeating the goal symbol for each alternation
+    /// A → α
+    /// A → β
+    ///  ···
+    /// A → ζ
+    func rewriteAlternations(for productions: [Production]) -> [Production] {
+        var splitProductions: [Production] = []
+        var worklist = productions
+
+        // continue while there are items left to process
+        while worklist.count > 0 {
+            let p = worklist.removeFirst()
+            if let match = p.containsSymbol(.metaSymbol(.alt)) {
+                // A → β ··· | ζ (modify production, i.e. shorten it)
+                let prod = Production(goal: p.goal, rule: Array(p.rule[(match.position+1)...]))
+                worklist.append(prod)
+                // A → α (new production with alternative)
+                let new = Production(goal: p.goal, rule: Array(p.rule[..<match.position]))
+                splitProductions.append(new)
+            } else {
+                splitProductions.append(p)
+            }
+        }
+        return splitProductions
+    }
+}
+
+extension Grammar {
+
+    /// Returns a new unique nonterminal, based on the given set of non-terminals,
+    /// based on the given suggestion.
+    func generateNonterminal(withPrefix prefix: String, nonTerminals: Set<NonTerminal>) -> NonTerminal {
+        var letters = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
+        var symbol = prefix + "-" + String(letters.removeFirst())
+        while nonTerminals.contains(NonTerminal(name: symbol)), letters.count > 0 {
+            symbol = prefix + "-" + String(letters.removeFirst())
+        }
+        return NonTerminal(name: symbol)
+    }
+
+    enum MatchingSymbols {
+        case grouping(slice: [Symbol], range: Range<Int>)
+        case option(slice: [Symbol], range: Range<Int>)
+        case repetition(slice: [Symbol], range: Range<Int>)
+    }
+
+    /// Seach for matching pairs of brackets within given list of symbols from left
+    /// to right. Return symbol content that is enclosed by the brackets and the range of
+    /// the matching brackets (lower and upper bounds).
+    func matchingSymbols(symbols: [Symbol]) -> MatchingSymbols? {
+        var stack = Stack<(Int,MetaSymbol)>()
+        for (i,symbol) in symbols.enumerated() {
+            switch symbol {
+            case .nonTerminal: break
+            case .metaSymbol(let meta):
+                switch meta {
+                case .lparen:
+                    stack.push((i,.rparen))
+                case .lbrace:
+                    stack.push((i,.rbrace))
+                case .lbracket:
+                    stack.push((i,.rbracket))
+                case .rparen, .rbrace, .rbracket:
+                    if let (pos,close) = stack.pop(), stack.isEmpty, close == meta {
+                        switch close {
+                        case .rparen:
+                            return .grouping(slice: Array(symbols[(pos+1)..<i]), range: pos..<i)
+                        case .rbrace:
+                            return .repetition(slice: Array(symbols[(pos+1)..<i]), range: pos..<i)
+                        case .rbracket:
+                            return .option(slice: Array(symbols[(pos+1)..<i]), range: pos..<i)
+                        default: break
+                        }
+                    }
+                default: break
+                }
+            default: break
+            }
+        }
+        return nil
+    }
+
+    // [α=ε β≠ε], [α≠ε β≠ε], [α≠ε β=ε] in A → α N β
+    // same for γ and δ in B → γ{X1...Xm}δ
+    enum Slice { case low, middle, high, complete }
+
+    private func sliceOverlap(_ p: Production, low: Int, high: Int) -> Slice {
+        if low > 0 && (high+1 < p.rule.count) { return .middle }
+        else if low == 0 && (high+1 < p.rule.count) { return .low }
+        else if low > 0 && (high+1 == p.rule.count) { return .high }
+        else { return .complete }
+    }
+
+    /// repetition
+    /// A → γ{X1...Xm}δ do
+    ///   N ← NewNonterminal()
+    ///   p ← A → γ N δ
+    ///
+    /// option
+    /// A → α[X1...Xn]β do
+    ///   N ← NewNonterminal()
+    ///   p ← A → α N β
+    ///
+    /// grouping
+    /// A → α(X1...Xn)β do
+    ///   N ← NewNonterminal()
+    ///   p ← A → α N β
+    private func modifyProduction(_ production: Production, with N: NonTerminal, in range: Range<Int>) -> Production {
+        let lower = range.lowerBound
+        let upper = range.upperBound
+        let goal = production.goal
+        let new = Symbol.nonTerminal(N)
+        return {
+            switch sliceOverlap(production, low: lower, high: upper) {
+            case .low: return Production(goal: goal, rule: [new] + production.rule[(upper+1)...])
+            case .middle: return Production(goal: goal, rule: production.rule[..<lower] + [new] + production.rule[(upper+1)...])
+            case .high: return Production(goal: goal, rule: production.rule[..<lower] + [new])
+            case .complete: return Production(goal: goal, rule: [new])
+            }
+        }()
+    }
+}
