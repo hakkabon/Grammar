@@ -145,8 +145,8 @@ public class GrammarParser {
     public private(set) var isExtended: Bool = false
     
     public init(grammar input: String) {
-        //self.tokenizer = GrammarTokenizer(input)
-        let scanner = Tokenizer(input)
+//        let scanner = Tokenizer(input)
+        let scanner = Tokenizer(input, symbols: Set<String>(symbols), keywords: Set<String>(keywords))
         self.tokenizer = ParserInput(scanner, source: input)
         
         self.diagnosticReporter = DiagnosticReporter(source: input)
