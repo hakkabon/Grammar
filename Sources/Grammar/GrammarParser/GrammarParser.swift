@@ -237,7 +237,7 @@ extension GrammarParser {
                 // Check if we are parsing the start a production and actually already
                 // processing the next production. If we can dectect 'identifier ::=' ahead of current token,
                 // we know that a new production will start at the new token.
-                if case let .symbol(symbol) = tokenizer.peek(ahead: 2)?.type, definingSymbols.contains(symbol) {
+                if case let .symbol(symbol) = tokenizer.peek(ahead: 1)?.type, definingSymbols.contains(symbol) {
                     Logger.bnf.trace("new production detected: '\(self.currentToken.type)' followed by '\(symbol)'")
                     return
                 }
@@ -247,7 +247,7 @@ extension GrammarParser {
                 // Check if we are parsing the start of a production and actually already
                 // processing the next production. If we can dectect '< identifier > ::=' ahead of current token,
                 // we know that a new production will start at the new token.
-                if case let .symbol(symbol) = tokenizer.peek(ahead: 4)?.type, definingSymbols.contains(symbol) {
+                if case let .symbol(symbol) = tokenizer.peek(ahead: 3)?.type, definingSymbols.contains(symbol) {
                     Logger.bnf.trace("new production detected: '\(self.currentToken.type)' followed by '\(symbol)'")
                     break
                 }
@@ -318,7 +318,7 @@ extension GrammarParser {
                 // Check if we are parsing off the end of current production and actually already
                 // processing the next production. If we can dectect 'identifier ::=' ahead of current token,
                 // we know that a new production will start at the new token.
-                if case let .symbol(symbol) = tokenizer.peek(ahead: 2)?.type, definingSymbols.contains(symbol) {
+                if case let .symbol(symbol) = tokenizer.peek(ahead: 1)?.type, definingSymbols.contains(symbol) {
                     Logger.bnf.trace("end-of-production detected: '\(self.currentToken.type)' followed by '\(symbol)'")
                     break
                 }
@@ -329,7 +329,7 @@ extension GrammarParser {
                 // Check if we are parsing off the end of current production and actually already
                 // processing the next production. If we can dectect '< identifier > ::=' ahead of current token,
                 // we know that a new production will start at the new token.
-                if case let .symbol(symbol) = tokenizer.peek(ahead: 4)?.type, definingSymbols.contains(symbol) {
+                if case let .symbol(symbol) = tokenizer.peek(ahead: 3)?.type, definingSymbols.contains(symbol) {
                     Logger.bnf.trace("end-of-production detected: '\(self.currentToken)' followed by '\(symbol)'")
                     break
                 }
