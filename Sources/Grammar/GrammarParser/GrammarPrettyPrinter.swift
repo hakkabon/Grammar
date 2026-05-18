@@ -122,13 +122,13 @@ public struct GrammarPrettyPrinter {
             return "\(identifier) : /\(pattern)/"
             
         case .emptyStringSymbol(let symbol):
-            return "\(symbol)"
+            return "epsilon: \(symbol)"
 
         case .endOfFileSymbol(let symbol):
-            return "\(symbol)"
+            return "EOF: \(symbol)"
 
         case .startSymbol(let start):
-            return "\(start)"
+            return "Start synbol: \(start)"
         }
     }
     

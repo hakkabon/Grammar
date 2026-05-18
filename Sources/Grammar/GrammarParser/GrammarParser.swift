@@ -163,7 +163,7 @@ extension GrammarParser {
     ///
     /// - Returns: complete bnf grammar of type `BnfExpression`.
     public func parse() -> BnfExpression {
-        var productions: [BnfExpression] = []
+        var expressions: [BnfExpression] = []
         
         // Clear stale diagnostics from previous runs
         diagnostics.removeAll()
@@ -172,14 +172,16 @@ extension GrammarParser {
             do {
                 switch currentToken.type {
                 case .symbol(let symbol) where symbol == ">":
-                    productions.append( try parseMetaStartRule() )
-                case .symbol(let symbol) where symbol == "<": // Legitimate start of a productions in BNF notation. production.
-                    productions.append( try parseProduction() )
+                    expressions.append( try parseMetaStartRule() )
+                case .symbol(let symbol) where symbol == "<":
+                    // Legitimate start of a productions in BNF notation.
+                    expressions.append( try parseProduction() )
                 case .keyword(let keyword) where keyword == "Lexical" || keyword == "lexical":
                     let lexicalDefinitions = try parseLexicalDefinitions()
-                    lexicalDefinitions.forEach( { productions.append($0) } )
-                case .identifier(_): // Legitimate start of a productions in EBNF/WSN notation.
-                    productions.append( try parseProduction() )
+                    lexicalDefinitions.forEach( { expressions.append($0) } )
+                case .identifier:
+                    // Legitimate start of a productions in EBNF/WSN notation.
+                    expressions.append( try parseProduction() )
                 case .literal(let literal):
                     throw makeError("a literal \(literal) cannot start a production")
                 case .number(let number):
@@ -210,7 +212,7 @@ extension GrammarParser {
             diagnosticReporter.report(diagnostics: diagnostics)
         }
         
-        return .syntax(productions)
+        return .syntax(expressions)
     }
 }
 
@@ -480,7 +482,10 @@ extension GrammarParser {
     private func parseMetaStartRule() throws -> BnfExpression {
         try match(.symbol(">"), "Expected '>' meta symbol")
 
-        return try parseNonterminal()
+        guard case .nonterminal(let nonterminal) = try parseNonterminal() else {
+            throw makeError("expected '<' identifier '>' | identifier in expression.")
+        }
+        return .startSymbol(nonterminal)
     }
 }
 

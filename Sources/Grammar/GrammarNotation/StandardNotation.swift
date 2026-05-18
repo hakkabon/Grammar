@@ -60,18 +60,16 @@ public struct StandardNotation {
             
             switch expression {
                 
-            case .terminal(let val):
-                switch val {
-                case MetaTerminal.eps.rawValue: return [.terminal(.meta(.eps))]
-//                case MetaTerminal.lambda: return [.terminal(.meta(.lambda))]
-                case MetaTerminal.eof.rawValue: return [.terminal(.meta(.eof))]
-                case MetaTerminal.empty.rawValue:  return [.terminal(.meta(.empty))]
-                default:
-                    return [.terminal(.string(string: val))]
+            case .terminal(let value):
+                guard let meta = MetaTerminal(rawValue: value) else {
+                    // The string did not match any of the meta terminal strings,
+                    // therefore it must be an ordinaly terminal.
+                    return [.terminal(.string(string: value))]
                 }
+                return [.terminal(.meta(meta))]
                 
-            case .nonterminal(let val):
-                return [.nonTerminal(NonTerminal(name: val))]
+            case .nonterminal(let value):
+                return [.nonTerminal(NonTerminal(name: value))]
                 
             case .emptyStringSymbol:
                 return [.terminal(.meta(.eps))]
