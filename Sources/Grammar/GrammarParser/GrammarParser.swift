@@ -133,7 +133,7 @@ public class GrammarParser {
     // Keywords that are recognized without any enclosing quotation marks.
     let keywords: [String] = ["lexical"]
     
-    private let tokenizer: Tokenizer
+    private var tokenizer: ParserInput<Tokenizer>
     private var currentToken: Token
     private var source: String
     
@@ -145,7 +145,10 @@ public class GrammarParser {
     public private(set) var isExtended: Bool = false
     
     public init(grammar input: String) {
-        self.tokenizer = Tokenizer(input, symbols: Set(symbols), keywords: Set(keywords))
+        //self.tokenizer = GrammarTokenizer(input)
+        let scanner = Tokenizer(input)
+        self.tokenizer = ParserInput(scanner, source: input)
+        
         self.diagnosticReporter = DiagnosticReporter(source: input)
         self.source = input
         
@@ -181,7 +184,6 @@ extension GrammarParser {
                     throw makeError("a literal \(literal) cannot start a production")
                 case .number(let number):
                     throw makeError("malplaced number \(number) in token stream")
-                case .space(_): advance()
                 case .comment: advance()
                 case .eof:
                     throw makeError("unexpected end of token stream")
