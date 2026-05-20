@@ -101,16 +101,19 @@ public struct GrammarPrettyPrinter {
         case .grouping(let expr):
             return "( " + visit(expr, contextPrecedence: .lowest) + " )"
             
-        // Atoms
-        
-        case .terminal(let val):
-            return quote(val)
+        case .terminal(let value):
+            guard let meta = MetaTerminal(rawValue: value) else {
+                // The string did not match any of the meta terminal strings,
+                // therefore it must be an ordinaly terminal.
+                return quote(value)
+            }
+            return "\(meta)"
             
-        case .nonterminal(let val):
+        case .nonterminal(let value):
             // Check if it needs angle brackets based on convention,
             // usually EBNF uses plain identifiers, BNF uses <>.
             // Let's stick to the raw name for EBNF.
-            return val
+            return value
         
         case .range(let id, let a, let b):
             return "\(id) : \(a)..\(b)"
