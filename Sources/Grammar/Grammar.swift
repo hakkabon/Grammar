@@ -208,8 +208,7 @@ extension Grammar: CustomStringConvertible {
             let arg2 = String($1.key.name.prefix(while: { $0 != "-" } ))
             return keyToPos[arg1]! < keyToPos[arg2]!
         }
-        
-//        return sortedGroupedProductions
+//        return order.compactMap { groupedProductions[$0] }
         return [:]
     }
 

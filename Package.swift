@@ -30,6 +30,7 @@ let package = Package(
             "Grammar",
             .product(name: "Algorithms", package: "swift-algorithms"),
         ]),
+        // Move executable target to its destination (grammar toolbox) when library confirmed working.
         .executableTarget(
             name: "bnf", dependencies: [
                 "Grammar",

@@ -5,7 +5,6 @@ let eps: Symbol = Symbol.terminal(.meta(MetaTerminal.eps))
 let eof: Symbol = Symbol.terminal(.meta(.eof))
 
 @Test func firstFollowTest_1() async throws {
-    
     let grammarString = """
         <A> ::= 'a' <B> ;
         <A> ::= 'b' ;
@@ -19,7 +18,6 @@ let eof: Symbol = Symbol.terminal(.meta(.eof))
 }
 
 @Test func firstFollowTest_2() async throws {
-    
     let grammarString = """
         <X> : <A> <B> <C> ;
         <A> : 'a' | ε ;
@@ -27,17 +25,28 @@ let eof: Symbol = Symbol.terminal(.meta(.eof))
         <C> : 'c' | 'd' ;
     """
     let grammar = try Grammar(bnf: grammarString, start: "X")
-    let (productions, _) = grammar.rewriteToStandardForm()
-    let standardGrammar = Grammar(productions: productions, start: grammar.start, lexicalTokens: [:])
+    let (first,follow) = grammar.firstAndFollow()
 
-    let (first,_) = standardGrammar.firstAndFollow()
-    let calculatedSet = first[n("X")]!
-    let expectedSet = Set<Symbol>([t("a"), t("b"), t("c"), t("d")])
-    #expect(calculatedSet == expectedSet)
+    let x_calculated = first[n("X")]!
+    #expect(x_calculated == Set<Symbol>([t("a"), t("b"), t("c"), t("d")]))
+    let a_calculated = first[n("A")]!
+    #expect(a_calculated == Set<Symbol>([t("a"), eps]))
+    let b_calculated = first[n("B")]!
+    #expect(b_calculated == Set<Symbol>([t("b"), eps]))
+    let c_calculated = first[n("C")]!
+    #expect(c_calculated == Set<Symbol>([t("c"), t("d")]))
+    
+    let x_follow_calculated = follow[NonTerminal(name: "X")]!
+    #expect(x_follow_calculated == Set<Symbol>([eof]))
+    let a_follow_calculated = follow[NonTerminal(name: "A")]!
+    #expect(a_follow_calculated == Set<Symbol>([t("b"), t("c"), t("d")]))
+    let b_follow_calculated = follow[NonTerminal(name: "B")]!
+    #expect(b_follow_calculated == Set<Symbol>([t("c"), t("d")]))
+    let c_follow_calculated = follow[NonTerminal(name: "C")]!
+    #expect(c_follow_calculated == Set<Symbol>([eof]))
 }
 
 @Test func firstFollowTest_3() async throws {
-    
     let grammarString = """
         X : T 'n' S ;
         X : R 'm' ;
@@ -61,7 +70,6 @@ let eof: Symbol = Symbol.terminal(.meta(.eof))
 }
 
 @Test func firstFollowTest_4() async throws {
-    
     let grammarString = """
         E : E '+' T | T ;
         T : T '*' F | F ;
@@ -83,7 +91,6 @@ let eof: Symbol = Symbol.terminal(.meta(.eof))
 }
 
 @Test func firstFollowTest_5() async throws {
-    
     let grammarString = """
         E  : T Ex
         Ex : '+' T Ex | ε
@@ -105,4 +112,3 @@ let eof: Symbol = Symbol.terminal(.meta(.eof))
     let expectedFollowSet = Set<Symbol>([eof,t(")"),t("+")])
     #expect(calculatedFollowSet == expectedFollowSet)
 }
-
