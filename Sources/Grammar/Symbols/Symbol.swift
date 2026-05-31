@@ -82,6 +82,45 @@ extension Array<Symbol> {
     }
 }
 
+extension Symbol {
+
+    /// Returns `true` if this symbol is a terminal (including meta-terminals).
+    public var isTerminal: Bool {
+        if case .terminal = self { return true }
+        return false
+    }
+
+    /// Returns `true` if this symbol is a non-terminal.
+    public var isNonTerminal: Bool {
+        if case .nonTerminal = self { return true }
+        return false
+    }
+
+    /// Returns `true` if this symbol represents the empty string (epsilon / lambda).
+    /// Matches `.terminal(.meta(.eps))`, `.terminal(.meta(.lambda))`,
+    /// `.terminal(.meta(.empty))`, and `.terminal(.string(""))`.
+    public var isEpsilon: Bool {
+        switch self {
+        case .terminal(let t):
+            return t.isEmpty
+        case .nonTerminal, .metaSymbol:
+            return false
+        }
+    }
+
+    /// Returns the wrapped `NonTerminal` if this symbol is `.nonTerminal`, otherwise `nil`.
+    public var nonTerminal: NonTerminal? {
+        if case .nonTerminal(let nt) = self { return nt }
+        return nil
+    }
+
+    /// Returns the wrapped `Terminal` if this symbol is `.terminal`, otherwise `nil`.
+    public var terminal: Terminal? {
+        if case .terminal(let t) = self { return t }
+        return nil
+    }
+}
+
 extension Array<Symbol> {
     /// Checks if any string in the array starts with the given prefix.
     /// - Parameter prefix: The prefix string to check for.

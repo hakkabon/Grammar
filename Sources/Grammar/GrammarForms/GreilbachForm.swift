@@ -5,266 +5,276 @@
 //  Created by Ulf Akerstedt-Inoue on 2024/01/04.
 //  Copyright © 2024 hakkabon software. All rights reserved.
 //
+//  Converts a context-free grammar to Greibach Normal Form (GNF).
+//
+//  A grammar is in GNF when every production has the shape:
+//    • A → a α        (starts with exactly one terminal, followed by zero or more non-terminals)
+//
+//  The conversion follows these steps:
+//    1. Eliminate ε-productions  (reused from CNF converter)
+//    2. Eliminate unit productions  (reused from CNF converter)
+//    3. Order non-terminals A1 … An and substitute so that Ai → Aj γ only when j > i
+//       (this eliminates indirect left recursion)
+//    4. Eliminate immediate left recursion for each Ai
+//    5. Back-substitute from An down to A1 so every rule starts with a terminal
+//
 
 import Foundation
 
 extension Grammar {
 
-/*
+    // MARK: - Public entry point
+
+    /// Returns a new grammar whose productions are in Greibach Normal Form.
+    public func toGreibachNormalForm() -> Grammar {
+        let converter = GreibachNormalFormConverter()
+        let gnfProductions = converter.convert(productions, startSymbol: start)
+        return Grammar(
+            productions: gnfProductions,
+            start: start,
+            empty: epsilon,
+            lexicalTokens: lexicalTokens,
+            generatedNonTerminals: generatedNonTerminals
+        )
+    }
+
+    // MARK: - Converter
+
     class GreibachNormalFormConverter {
-        
-        /// Convert grammar to Greibach Normal Form
-        /// - Parameter productions: Input productions
-        /// - Returns: Productions in GNF
-        public func convert(_ productions: [Production]) -> [Production] {
-            GrammarUtils.resetCounter()
-            
-            var grouped = GrammarUtils.groupProductions(productions)
-            
-            // Step 1: Eliminate epsilon productions
-            grouped = eliminateEpsilonProductions(grouped)
-            
-            // Step 2: Eliminate unit productions
-            grouped = eliminateUnitProductions(grouped)
-            
-            // Step 3: Eliminate left recursion and convert to GNF
-            grouped = convertToGNFForm(grouped)
-            
-            return GrammarUtils.ungroupProductions(grouped)
+
+        private var counter = 0
+
+        private func freshNT(prefix: String) -> NonTerminal {
+            defer { counter += 1 }
+            return NonTerminal(name: "\(prefix)\(counter)")
         }
-        
-        // MARK: - Epsilon and Unit Production Elimination (same as CNF)
-        
-        private func eliminateEpsilonProductions(_ grammar: [NonTerminal: [[Symbol]]]) -> [NonTerminal: [[Symbol]]] {
-            // Same implementation as CNF converter
-            let cnfConverter = ChomskyNormalFormConverter()
-            return cnfConverter.eliminateEpsilonProductions(grammar)
+
+        // MARK: Convert
+
+        /// Convert the given productions to GNF.
+        func convert(_ productions: [Production], startSymbol: NonTerminal) -> [Production] {
+            counter = 0
+
+            let cnf = ChomskyNormalFormConverter()
+
+            var grouped = group(productions)
+
+            // Step 1 – remove ε-productions
+            grouped = cnf.eliminateEpsilonProductions(grouped)
+
+            // Step 2 – remove unit productions
+            grouped = cnf.eliminateUnitProductions(grouped)
+
+            // Step 3 & 4 – order NTs, substitute to remove left recursion
+            grouped = eliminateLeftRecursion(grouped)
+
+            // Step 5 – back-substitute so every rule starts with a terminal
+            grouped = backSubstitute(grouped)
+
+            // Step 6 – replace terminals in the tail (positions ≥ 1) with fresh NTs
+            grouped = wrapTailTerminals(grouped)
+
+            return ungroup(grouped)
         }
-        
-        private func eliminateUnitProductions(_ grammar: [NonTerminal: [[Symbol]]]) -> [NonTerminal: [[Symbol]]] {
-            // Same implementation as CNF converter
-            let cnfConverter = ChomskyNormalFormConverter()
-            return cnfConverter.eliminateUnitProductions(grammar)
-        }
-        
-        // MARK: - Convert to GNF Form
-        
-        private func convertToGNFForm(_ grammar: [NonTerminal: [[Symbol]]]) -> [NonTerminal: [[Symbol]]] {
-            
+
+        // MARK: - Step 3 & 4: Eliminate left recursion (Rosenkrantz–Stearns algorithm)
+
+        /// Orders non-terminals A1 … An, then for each Ai:
+        ///   • Replaces Ai → Aj γ (j < i) by substituting all Aj-rules
+        ///   • Eliminates any resulting immediate left recursion via a fresh NT Ai'
+        private func eliminateLeftRecursion(
+            _ grammar: [NonTerminal: [[Symbol]]]
+        ) -> [NonTerminal: [[Symbol]]] {
+
+            // Stable ordering so the algorithm is deterministic
+            let order = grammar.keys.sorted { $0.name < $1.name }
             var result = grammar
-            let nts = Array(grammar.keys.sorted { $0.name < $1.name })
-            
-            // Step 1: Order non-terminals and eliminate left recursion
-            for i in 0..<nts.count {
-                let ai = nts[i]
-                guard var aiRules = result[ai] else { continue }
-                
-                // Replace Ai -> Aj γ where j < i
-                var newRules: [[Symbol]] = []
-                
+
+            for i in 0..<order.count {
+                let ai = order[i]
+                guard let aiRules = result[ai] else { continue }
+
+                // Substitute Ai → Aj γ where j < i
+                var expanded: [[Symbol]] = []
                 for rule in aiRules {
                     if let firstNT = rule.first?.nonTerminal,
-                       let j = nts.firstIndex(of: firstNT),
-                       j < i {
-                        // Replace with all productions of Aj
-                        if let ajRules = result[firstNT] {
-                            for ajRule in ajRules {
-                                newRules.append(ajRule + Array(rule.dropFirst()))
-                            }
+                       let j = order.firstIndex(of: firstNT), j < i,
+                       let ajRules = result[firstNT] {
+                        // Replace with all Aj-productions prepended to the tail
+                        let tail = Array(rule.dropFirst())
+                        for ajRule in ajRules {
+                            expanded.append(ajRule + tail)
                         }
                     } else {
-                        newRules.append(rule)
+                        expanded.append(rule)
                     }
                 }
-                
-                result[ai] = newRules
-                
-                // Eliminate immediate left recursion
+                result[ai] = expanded
+
+                // Eliminate immediate left recursion for Ai
                 result = eliminateImmediateLeftRecursion(result, for: ai)
             }
-            
-            // Step 2: Ensure all productions start with a terminal
-            result = ensureTerminalFirst(result)
-            
             return result
         }
-        
-        private func eliminateImmediateLeftRecursion(_ grammar: [NonTerminal: [[Symbol]]], for nt: NonTerminal) -> [NonTerminal: [[Symbol]]] {
-            
-            var result = grammar
-            guard let rules = result[nt] else { return result }
-            
-            var recursive: [[Symbol]] = []
-            var nonRecursive: [[Symbol]] = []
-            
+
+        /// Rewrites immediate left recursion  A → A α | β  into
+        ///   A  → β A'  (for each non-recursive β)
+        ///   A' → α A'  (for each recursive α)
+        ///   A' → ε     (base case)
+        private func eliminateImmediateLeftRecursion(
+            _ grammar: [NonTerminal: [[Symbol]]],
+            for nt: NonTerminal
+        ) -> [NonTerminal: [[Symbol]]] {
+
+            guard let rules = grammar[nt] else { return grammar }
+
+            var recursive: [[Symbol]] = []     // α  in  A → A α
+            var nonRecursive: [[Symbol]] = []  // β  in  A → β
+
             for rule in rules {
-                if let firstNT = rule.first?.nonTerminal, firstNT == nt {
-                    // A -> A α, store α
+                if rule.first?.nonTerminal == nt {
                     recursive.append(Array(rule.dropFirst()))
                 } else {
                     nonRecursive.append(rule)
                 }
             }
-            
-            if !recursive.isEmpty {
-                let newNT = GrammarUtils.generateNonTerminal(prefix: "Z")
-                
-                // A -> β A' for each non-recursive production
-                result[nt] = nonRecursive.map { $0 + [.nonTerminal(newNT)] }
-                
-                // A' -> α A' | ε for each recursive production
-                var newNTRules: [[Symbol]] = []
-                for alpha in recursive {
-                    newNTRules.append(alpha + [.nonTerminal(newNT)])
-                }
-                newNTRules.append([.terminal(.meta(.eps))])
-                
-                result[newNT] = newNTRules
-            }
-            
+
+            guard !recursive.isEmpty else { return grammar }
+
+            var result = grammar
+            let prime = freshNT(prefix: "\(nt.name)'")
+
+            // A  → β A'
+            result[nt] = nonRecursive.map { $0 + [.nonTerminal(prime)] }
+
+            // A' → α A' | ε
+            var primeRules: [[Symbol]] = recursive.map { $0 + [.nonTerminal(prime)] }
+            primeRules.append([.terminal(.meta(.eps))])
+            result[prime] = primeRules
+
             return result
         }
-        
-        private func ensureTerminalFirst(_ grammar: [NonTerminal: [[Symbol]]]) -> [NonTerminal: [[Symbol]]] {
-            
-            var result: [NonTerminal: [[Symbol]]] = [:]
-            var maxIterations = 100  // Prevent infinite loops
-            
-            for (nt, rules) in grammar {
-                result[nt] = []
-                
-                for rule in rules {
-                    if rule.isEmpty || rule[0].isEpsilon {
-                        result[nt]?.append(rule)
-                    } else if rule[0].isTerminal {
-                        result[nt]?.append(rule)
-                    } else if let firstNT = rule[0].nonTerminal {
-                        // Replace A -> B α with A -> γ α for all B -> γ where γ starts with terminal
-                        var expanded = expandToTerminal(
-                            firstNT: firstNT,
-                            rest: Array(rule.dropFirst()),
-                            grammar: grammar,
-                            depth: 0,
-                            maxDepth: maxIterations
-                        )
-                        
-                        // If we couldn't expand, keep the original rule
-                        if expanded.isEmpty {
-                            expanded = [rule]
-                        }
-                        
-                        result[nt]?.append(contentsOf: expanded)
-                    }
-                }
-            }
-            
-            return result
-        }
-        
-        private func expandToTerminal(firstNT: NonTerminal, rest: [Symbol], grammar: [NonTerminal: [[Symbol]]], depth: Int, maxDepth: Int) -> [[Symbol]] {
-            
-            if depth >= maxDepth { return [] }
-            guard let rules = grammar[firstNT] else { return [] }
-            var result: [[Symbol]] = []
-            
-            for rule in rules {
-                if rule.isEmpty { continue }
-                
-                switch rule[0] {
-                case .terminal(let terminal):
-                    result.append(rule + rest)
-                case .nonTerminal(let nonTerminal):
-                    let expanded = expandToTerminal(
-                        firstNT: nonTerminal,
-                        rest: Array(rule.dropFirst()) + rest,
-                        grammar: grammar,
-                        depth: depth + 1,
-                        maxDepth: maxDepth
+
+        // MARK: - Step 5: Back-substitution to ensure terminal-first
+
+        /// Works from the last non-terminal back to the first, substituting
+        /// any rule that starts with a non-terminal until every rule starts
+        /// with a terminal (or epsilon).
+        private func backSubstitute(
+            _ grammar: [NonTerminal: [[Symbol]]]
+        ) -> [NonTerminal: [[Symbol]]] {
+
+            let order = grammar.keys.sorted { $0.name < $1.name }
+            var result = grammar
+
+            // Iterate in reverse order for back-substitution
+            for i in stride(from: order.count - 1, through: 0, by: -1) {
+                let ai = order[i]
+                guard let aiRules = result[ai] else { continue }
+
+                var newRules: [[Symbol]] = []
+                for rule in aiRules {
+                    let expanded = expandUntilTerminalFirst(
+                        rule: rule,
+                        grammar: result,
+                        depth: 0,
+                        maxDepth: 200
                     )
-                    result.append(contentsOf: expanded)
-                default:
-                    break
+                    newRules.append(contentsOf: expanded.isEmpty ? [rule] : expanded)
                 }
-//                if rule[0].isTerminal || rule[0].isEpsilon {
-//                    result.append(rule + rest)
-//                } else if let nextNT = rule[0].nonTerminal {
-//                    let expanded = expandToTerminal(
-//                        firstNT: nextNT,
-//                        rest: Array(rule.dropFirst()) + rest,
-//                        grammar: grammar,
-//                        depth: depth + 1,
-//                        maxDepth: maxDepth
-//                    )
-//                    result.append(contentsOf: expanded)
-//                }
+                // Deduplicate
+                var seen: [[Symbol]] = []
+                for r in newRules where !seen.contains(r) { seen.append(r) }
+                result[ai] = seen
             }
-            
             return result
+        }
+
+        /// Recursively expands a rule until its first symbol is a terminal.
+        /// Returns the set of fully-expanded rules, or an empty array if the
+        /// rule already starts with a terminal / epsilon.
+        private func expandUntilTerminalFirst(
+            rule: [Symbol],
+            grammar: [NonTerminal: [[Symbol]]],
+            depth: Int,
+            maxDepth: Int
+        ) -> [[Symbol]] {
+
+            guard !rule.isEmpty else { return [[]] }
+
+            let head = rule[0]
+            let tail = Array(rule.dropFirst())
+
+            // Already starts with a terminal or epsilon — nothing to do
+            if head.isTerminal || head.isEpsilon { return [rule] }
+
+            guard depth < maxDepth,
+                  let firstNT = head.nonTerminal,
+                  let ntRules = grammar[firstNT] else { return [rule] }
+
+            var result: [[Symbol]] = []
+            for ntRule in ntRules {
+                let combined = ntRule + tail
+                let further = expandUntilTerminalFirst(
+                    rule: combined,
+                    grammar: grammar,
+                    depth: depth + 1,
+                    maxDepth: maxDepth
+                )
+                result.append(contentsOf: further.isEmpty ? [combined] : further)
+            }
+            return result
+        }
+
+        // MARK: - Step 6: Wrap tail terminals
+
+        /// GNF requires that every symbol after the leading terminal is a non-terminal.
+        /// This step replaces any terminal `a` appearing at position ≥ 1 in a rule with
+        /// a fresh non-terminal `Ta` that has the single production `Ta → a`.
+        private func wrapTailTerminals(
+            _ grammar: [NonTerminal: [[Symbol]]]
+        ) -> [NonTerminal: [[Symbol]]] {
+
+            var result = grammar
+            var termMap: [String: NonTerminal] = [:]
+
+            for (nt, rules) in grammar {
+                var newRules: [[Symbol]] = []
+                for rule in rules {
+                    guard rule.count >= 2 else {
+                        newRules.append(rule)
+                        continue
+                    }
+                    // Keep the first symbol as-is (it must already be a terminal after step 5)
+                    let head = rule[0]
+                    let tail: [Symbol] = rule.dropFirst().map { sym in
+                        guard sym.isTerminal else { return sym }
+                        let key = sym.description
+                        if let existing = termMap[key] { return .nonTerminal(existing) }
+                        let fresh = freshNT(prefix: "T")
+                        termMap[key] = fresh
+                        result[fresh] = [[sym]]
+                        return .nonTerminal(fresh)
+                    }
+                    newRules.append([head] + tail)
+                }
+                result[nt] = newRules
+            }
+            return result
+        }
+
+        // MARK: - Helpers
+
+        private func group(_ productions: [Production]) -> [NonTerminal: [[Symbol]]] {
+            var grouped: [NonTerminal: [[Symbol]]] = [:]
+            for prod in productions {
+                grouped[prod.goal, default: []].append(prod.rule)
+            }
+            return grouped
+        }
+
+        private func ungroup(_ grouped: [NonTerminal: [[Symbol]]]) -> [Production] {
+            grouped.flatMap { nt, rules in rules.map { Production(goal: nt, rule: $0) } }
         }
     }
-*/
-    
 }
- 
-
-/*
-
-  // MARK: - Example Usage
-
-  func exampleUsage() {
-      // Create a simple grammar: S -> A B | a, A -> a A | ε, B -> b B | b
-      let s = NonTerminal(name: "S")
-      let a = NonTerminal(name: "A")
-      let b = NonTerminal(name: "B")
-      
-      let termA = Symbol.terminal(.string(string: "a"))
-      let termB = Symbol.terminal(.string(string: "b"))
-      let epsilon = Symbol.metaSymbol(.epsilon)
-      
-      let productions = [
-          Production(goal: s, rule: [.nonTerminal(a), .nonTerminal(b)]),
-          Production(goal: s, rule: [termA]),
-          Production(goal: a, rule: [termA, .nonTerminal(a)]),
-          Production(goal: a, rule: [epsilon]),
-          Production(goal: b, rule: [termB, .nonTerminal(b)]),
-          Production(goal: b, rule: [termB])
-      ]
-      
-      // Convert to CNF
-      let cnfConverter = ChomskyNormalFormConverter()
-      let cnfProductions = cnfConverter.convert(productions)
-      
-      print("=== Chomsky Normal Form ===")
-      for prod in cnfProductions {
-          let ruleStr = prod.rule.map { symbol -> String in
-              switch symbol {
-              case .nonTerminal(let nt): return nt.name
-              case .terminal(let t): return t.description
-              case .metaSymbol(let m): return m.rawValue
-              }
-          }.joined(separator: " ")
-          print("\(prod.goal.name) -> \(ruleStr)")
-      }
-      
-      // Convert to GNF
-      let gnfConverter = GreibachNormalFormConverter()
-      let gnfProductions = gnfConverter.convert(productions)
-      
-      print("\n=== Greibach Normal Form ===")
-      for prod in gnfProductions {
-          let ruleStr = prod.rule.map { symbol -> String in
-              switch symbol {
-              case .nonTerminal(let nt): return nt.name
-              case .terminal(let t): return t.description
-              case .metaSymbol(let m): return m.rawValue
-              }
-          }.joined(separator: " ")
-          print("\(prod.goal.name) -> \(ruleStr)")
-      }
-  }
-
-  // Uncomment to run example
-  // exampleUsage()
-  
- 
-*/
