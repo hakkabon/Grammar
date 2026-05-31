@@ -9,8 +9,7 @@
 import Foundation
 
 extension Grammar {
-
-/*
+    
     class GreibachNormalFormConverter {
         
         /// Convert grammar to Greibach Normal Form
@@ -185,25 +184,23 @@ extension Grammar {
                 default:
                     break
                 }
-//                if rule[0].isTerminal || rule[0].isEpsilon {
-//                    result.append(rule + rest)
-//                } else if let nextNT = rule[0].nonTerminal {
-//                    let expanded = expandToTerminal(
-//                        firstNT: nextNT,
-//                        rest: Array(rule.dropFirst()) + rest,
-//                        grammar: grammar,
-//                        depth: depth + 1,
-//                        maxDepth: maxDepth
-//                    )
-//                    result.append(contentsOf: expanded)
-//                }
+                //                if rule[0].isTerminal || rule[0].isEpsilon {
+                //                    result.append(rule + rest)
+                //                } else if let nextNT = rule[0].nonTerminal {
+                //                    let expanded = expandToTerminal(
+                //                        firstNT: nextNT,
+                //                        rest: Array(rule.dropFirst()) + rest,
+                //                        grammar: grammar,
+                //                        depth: depth + 1,
+                //                        maxDepth: maxDepth
+                //                    )
+                //                    result.append(contentsOf: expanded)
+                //                }
             }
             
             return result
         }
     }
-*/
-    
 }
  
 
