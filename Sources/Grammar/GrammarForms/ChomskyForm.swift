@@ -5,62 +5,98 @@
 //  Created by Ulf Akerstedt-Inoue on 2023/09/07.
 //  Copyright © 2023 hakkabon software. All rights reserved.
 //
+//  Converts a context-free grammar to Chomsky Normal Form (CNF).
+//
+//  A grammar is in CNF when every production has one of these shapes:
+//    • A → a          (single terminal)
+//    • A → B C        (exactly two non-terminals)
+//    • S → ε          (only the start symbol may derive epsilon)
+//
+//  The conversion follows four classical steps:
+//    1. Eliminate ε-productions (nullable non-terminals)
+//    2. Eliminate unit productions  (A → B)
+//    3. Replace terminals in long rules with fresh non-terminals  (TERM step)
+//    4. Break rules longer than two symbols into binary pairs     (BIN step)
+//
 
 import Foundation
 
 extension Grammar {
 
+    // MARK: - Public entry point
+
+    /// Returns a new grammar whose productions are in Chomsky Normal Form.
+    public func toChomskyNormalForm() -> Grammar {
+        let converter = ChomskyNormalFormConverter()
+        let cnfProductions = converter.convert(productions, startSymbol: start)
+        return Grammar(
+            productions: cnfProductions,
+            start: start,
+            empty: epsilon,
+            lexicalTokens: lexicalTokens,
+            generatedNonTerminals: generatedNonTerminals
+        )
+    }
+
+    // MARK: - Converter
+
     class ChomskyNormalFormConverter {
-        
-        /// Convert grammar to Chomsky Normal Form
-        /// - Parameter productions: Input productions
-        /// - Returns: Productions in CNF
-        public func convert(_ productions: [Production]) -> [Production] {
-            GrammarUtils.resetCounter()
-            
-            var grouped = GrammarUtils.groupProductions(productions)
-            
-            // Step 1: Eliminate epsilon productions
-            grouped = eliminateEpsilonProductions(grouped)
-            
-            // Step 2: Eliminate unit productions
-            grouped = eliminateUnitProductions(grouped)
-            
-            // Step 3: Convert to CNF form
-            grouped = convertToCNFForm(grouped)
-            
-            return GrammarUtils.ungroupProductions(grouped)
+
+        /// Unique-name counter; reset before each conversion.
+        private var counter = 0
+
+        private func freshNT(prefix: String) -> NonTerminal {
+            defer { counter += 1 }
+            return NonTerminal(name: "\(prefix)\(counter)")
         }
-        
-        // MARK: - Step 1: Eliminate Epsilon Productions
-        
-        private func eliminateEpsilonProductions(_ grammar: [NonTerminal: [[Symbol]]]) -> [NonTerminal: [[Symbol]]] {
-            
-            // Find all nullable non-terminals
+
+        // MARK: Convert
+
+        /// Convert the given productions to CNF.
+        /// - Parameters:
+        ///   - productions: The input productions.
+        ///   - startSymbol: The grammar's start symbol (needed to preserve S → ε if required).
+        /// - Returns: Productions in Chomsky Normal Form.
+        func convert(_ productions: [Production], startSymbol: NonTerminal) -> [Production] {
+            counter = 0
+
+            var grouped = group(productions)
+
+            // Step 1 – remove ε-productions
+            grouped = eliminateEpsilonProductions(grouped)
+
+            // Step 2 – remove unit productions (A → B)
+            grouped = eliminateUnitProductions(grouped)
+
+            // Step 3 – TERM: replace terminals in rules of length ≥ 2
+            grouped = termStep(grouped)
+
+            // Step 4 – BIN: binarise rules of length ≥ 3
+            grouped = binStep(grouped)
+
+            return ungroup(grouped)
+        }
+
+        // MARK: - Step 1: Eliminate ε-productions
+
+        /// Finds all nullable non-terminals and rewrites every production by
+        /// generating all subsets that omit nullable symbols, then drops the
+        /// original ε-productions.
+        func eliminateEpsilonProductions(
+            _ grammar: [NonTerminal: [[Symbol]]]
+        ) -> [NonTerminal: [[Symbol]]] {
+
+            // --- compute nullable set ---
             var nullable = Set<NonTerminal>()
             var changed = true
-            
             while changed {
                 changed = false
-                
-                for (nt, rules) in grammar {
-                    if nullable.contains(nt) { continue }
-                    
+                for (nt, rules) in grammar where !nullable.contains(nt) {
                     for rule in rules {
-                        // Check if rule is epsilon
-                        if rule.count == 1 && rule[0].isEpsilon {
-                            nullable.insert(nt)
-                            changed = true
-                            break
+                        let ruleIsNullable = rule.isEmpty || rule.allSatisfy {
+                            $0.isEpsilon || ($0.nonTerminal.map { nullable.contains($0) } ?? false)
                         }
-                        
-                        // Check if all symbols in rule are nullable
-                        if rule.allSatisfy({ symbol in
-                            if let nt = symbol.nonTerminal {
-                                return nullable.contains(nt)
-                            }
-                            return false
-                        }) {
+                        if ruleIsNullable {
                             nullable.insert(nt)
                             changed = true
                             break
@@ -68,219 +104,193 @@ extension Grammar {
                     }
                 }
             }
-            
-            // Generate new productions without epsilon
+
+            // --- rewrite productions ---
             var result: [NonTerminal: [[Symbol]]] = [:]
-            
             for (nt, rules) in grammar {
-                result[nt] = []
-                
+                var newRules: [[Symbol]] = []
                 for rule in rules {
-                    // Skip epsilon productions
-                    if rule.count == 1 && rule[0].isEpsilon {
-                        continue
-                    }
-                    
-                    // Generate all combinations by removing nullable symbols
-                    let combinations = generateCombinations(rule: rule, nullable: nullable)
-                    
-                    for combo in combinations {
-                        if !combo.isEmpty && !result[nt]!.contains(where: { $0 == combo }) {
-                            result[nt]?.append(combo)
-                        }
+                    // Drop pure ε-productions
+                    if rule.count == 1 && rule[0].isEpsilon { continue }
+                    if rule.isEmpty { continue }
+
+                    // Generate all non-empty subsets by omitting nullable positions
+                    for combo in nullableCombinations(rule: rule, nullable: nullable)
+                    where !combo.isEmpty {
+                        if !newRules.contains(combo) { newRules.append(combo) }
                     }
                 }
+                result[nt] = newRules
             }
-            
             return result
         }
-        
-        private func generateCombinations(rule: [Symbol], nullable: Set<NonTerminal>) -> [[Symbol]] {
-            if rule.isEmpty {
-                return [[]]
-            }
-            
-            let first = rule[0]
-            let rest = Array(rule.dropFirst())
-            let restCombos = generateCombinations(rule: rest, nullable: nullable)
-            
+
+        /// Recursively generates all combinations of `rule` where nullable symbols
+        /// may be present or absent.
+        private func nullableCombinations(
+            rule: [Symbol],
+            nullable: Set<NonTerminal>
+        ) -> [[Symbol]] {
+            guard !rule.isEmpty else { return [[]] }
+
+            let head = rule[0]
+            let tail = Array(rule.dropFirst())
+            let tailCombos = nullableCombinations(rule: tail, nullable: nullable)
+
             var result: [[Symbol]] = []
-            
-            // Include combinations with first symbol
-            for combo in restCombos {
-                result.append([first] + combo)
+            // Always include head
+            for combo in tailCombos { result.append([head] + combo) }
+            // Optionally omit head if it is nullable
+            if head.nonTerminal.map({ nullable.contains($0) }) ?? false {
+                result.append(contentsOf: tailCombos)
             }
-            
-            // If first symbol is nullable, include combinations without it
-            if let nt = first.nonTerminal, nullable.contains(nt) {
-                result.append(contentsOf: restCombos)
-            }
-            
             return result
         }
-        
-        // MARK: - Step 2: Eliminate Unit Productions
-        
-        private func eliminateUnitProductions(_ grammar: [NonTerminal: [[Symbol]]])
-            -> [NonTerminal: [[Symbol]]] {
-            
-            // Build unit pairs (A, B) where A =>* B
-            var unitPairs: Set<String> = Set()
-            
-            // Initialize with reflexive pairs
-            for nt in grammar.keys {
-                unitPairs.insert("\(nt.name),\(nt.name)")
-            }
-            
-            // Find all unit pairs
+
+        // MARK: - Step 2: Eliminate unit productions
+
+        /// Removes all unit productions A → B by computing the transitive closure
+        /// of the unit-production relation and substituting the non-unit rules.
+        func eliminateUnitProductions(
+            _ grammar: [NonTerminal: [[Symbol]]]
+        ) -> [NonTerminal: [[Symbol]]] {
+
+            // Build unit-reachability: unitReach[A] = { B | A =>* B via unit steps }
+            var unitReach: [NonTerminal: Set<NonTerminal>] = [:]
+            for nt in grammar.keys { unitReach[nt] = [nt] }
+
             var changed = true
             while changed {
                 changed = false
-                
                 for (nt, rules) in grammar {
-                    for rule in rules {
-                        // Check if it's a unit production
-                        if rule.count == 1, let target = rule[0].nonTerminal {
-                            let pair = "\(nt.name),\(target.name)"
-                            if !unitPairs.contains(pair) {
-                                unitPairs.insert(pair)
+                    for rule in rules where rule.count == 1 {
+                        guard let target = rule[0].nonTerminal else { continue }
+                        let reachableViaTarget = unitReach[target] ?? [target]
+                        for reached in reachableViaTarget {
+                            if unitReach[nt]?.insert(reached).inserted == true {
                                 changed = true
                             }
-                            
-                            // Transitivity: if (A, B) and (B, C) then (A, C)
-                            for existing in unitPairs {
-                                let parts = existing.split(separator: ",")
-                                if parts[1] == nt.name {
-                                    let newPair = "\(parts[0]),\(target.name)"
-                                    if !unitPairs.contains(newPair) {
-                                        unitPairs.insert(newPair)
-                                        changed = true
-                                    }
-                                }
-                            }
                         }
                     }
                 }
             }
-            
-            // Build new grammar without unit productions
+
+            // Build new grammar: for each A, collect all non-unit rules reachable from A
             var result: [NonTerminal: [[Symbol]]] = [:]
-            
             for nt in grammar.keys {
-                result[nt] = []
-                
-                for pair in unitPairs {
-                    let parts = pair.split(separator: ",")
-                    if parts[0] == nt.name {
-                        let targetNT = NonTerminal(name: String(parts[1]))
-                        
-                        if let targetRules = grammar[targetNT] {
-                            for rule in targetRules {
-                                // Only add non-unit productions
-                                if rule.count > 1 || !rule[0].isNonTerminal {
-                                    if !result[nt]!.contains(where: { $0 == rule }) {
-                                        result[nt]?.append(rule)
-                                    }
-                                }
-                            }
-                        }
+                var newRules: [[Symbol]] = []
+                for reachable in unitReach[nt] ?? [] {
+                    for rule in grammar[reachable] ?? [] {
+                        // Skip unit productions
+                        if rule.count == 1 && rule[0].isNonTerminal { continue }
+                        if !newRules.contains(rule) { newRules.append(rule) }
                     }
                 }
+                result[nt] = newRules
             }
-            
             return result
         }
-        
-        // MARK: - Step 3: Convert to CNF Form
-        
-        private func convertToCNFForm(_ grammar: [NonTerminal: [[Symbol]]]) -> [NonTerminal: [[Symbol]]] {
-            
+
+        // MARK: - Step 3: TERM – replace terminals in long rules
+
+        /// For every rule of length ≥ 2, replaces each terminal `a` with a fresh
+        /// non-terminal `Ta` that has the single production `Ta → a`.
+        private func termStep(
+            _ grammar: [NonTerminal: [[Symbol]]]
+        ) -> [NonTerminal: [[Symbol]]] {
+
             var result = grammar
-            var terminalMap: [String: NonTerminal] = [:]
-            
-            // Replace terminals in productions of length > 1
-            for (nt, rules) in result {
+            // Map from terminal description → fresh NT
+            var termMap: [String: NonTerminal] = [:]
+
+            for (nt, rules) in grammar {
                 var newRules: [[Symbol]] = []
-                
                 for rule in rules {
-                    if rule.count == 1 {
+                    if rule.count < 2 {
                         newRules.append(rule)
                         continue
                     }
-                    
-                    var newRule: [Symbol] = []
-                    for symbol in rule {
-                        if symbol.isTerminal {
-                            let termKey = terminalDescription(symbol)
-                            
-                            if terminalMap[termKey] == nil {
-                                let newNT = GrammarUtils.generateNonTerminal(prefix: "T")
-                                terminalMap[termKey] = newNT
-                                result[newNT] = [[symbol]]
-                            }
-                            
-                            newRule.append(.nonTerminal(terminalMap[termKey]!))
-                        } else {
-                            newRule.append(symbol)
-                        }
+                    let rewritten: [Symbol] = rule.map { sym in
+                        guard sym.isTerminal else { return sym }
+                        let key = sym.description
+                        if let existing = termMap[key] { return .nonTerminal(existing) }
+                        let fresh = freshNT(prefix: "T")
+                        termMap[key] = fresh
+                        result[fresh] = [[sym]]
+                        return .nonTerminal(fresh)
                     }
-                    newRules.append(newRule)
+                    newRules.append(rewritten)
                 }
-                
                 result[nt] = newRules
             }
-            
-            // Break down productions of length > 2
-            var finalResult: [NonTerminal: [[Symbol]]] = [:]
-            
-            for (nt, rules) in result {
-                finalResult[nt] = []
-                
+            return result
+        }
+
+        // MARK: - Step 4: BIN – binarise long rules
+
+        /// Breaks every rule of length ≥ 3 into a right-branching chain of binary rules.
+        ///
+        /// Example:  A → B C D E
+        ///   becomes A → B Y0
+        ///           Y0 → C Y1
+        ///           Y1 → D E
+        private func binStep(
+            _ grammar: [NonTerminal: [[Symbol]]]
+        ) -> [NonTerminal: [[Symbol]]] {
+
+            var result: [NonTerminal: [[Symbol]]] = [:]
+
+            for (nt, rules) in grammar {
+                var newRules: [[Symbol]] = []
                 for rule in rules {
                     if rule.count <= 2 {
-                        finalResult[nt]?.append(rule)
+                        newRules.append(rule)
                         continue
                     }
-                    
-                    // Break down: A -> B C D E becomes A -> B Y0, Y0 -> C Y1, Y1 -> D E
-                    var current = rule[0]
-                    
-                    for i in 1..<rule.count {
-                        if i == rule.count - 1 {
-                            // Last pair
-                            let newNT = GrammarUtils.generateNonTerminal(prefix: "Y")
-                            
-                            if i == 1 {
-                                finalResult[nt]?.append([current, .nonTerminal(newNT)])
-                            } else if let prevNT = current.nonTerminal {
-                                if finalResult[prevNT] == nil {
-                                    finalResult[prevNT] = []
-                                }
-                                finalResult[prevNT]?.append([rule[i - 1], .nonTerminal(newNT)])
-                            }
-                            
-                            finalResult[newNT] = [[rule[i - 1], rule[i]]]
+                    // Build right-branching chain
+                    // rule = [s0, s1, s2, ..., sN]
+                    // We want: nt → s0 Y0, Y0 → s1 Y1, ..., Y(N-2) → s(N-1) sN
+                    var chain = rule
+                    var currentNT = nt
+                    var firstRule = true
+
+                    while chain.count > 2 {
+                        let head = chain[0]
+                        let fresh = freshNT(prefix: "Y")
+                        let binaryRule: [Symbol] = [head, .nonTerminal(fresh)]
+
+                        if firstRule {
+                            newRules.append(binaryRule)
+                            firstRule = false
                         } else {
-                            let newNT = GrammarUtils.generateNonTerminal(prefix: "Y")
-                            
-                            if i == 1 {
-                                finalResult[nt]?.append([current, .nonTerminal(newNT)])
-                            }
-                            
-                            current = .nonTerminal(newNT)
+                            if result[currentNT] == nil { result[currentNT] = [] }
+                            result[currentNT]?.append(binaryRule)
                         }
+                        currentNT = fresh
+                        chain = Array(chain.dropFirst())
                     }
+                    // Last two symbols
+                    if result[currentNT] == nil { result[currentNT] = [] }
+                    result[currentNT]?.append(chain)
                 }
+                if result[nt] == nil { result[nt] = [] }
+                result[nt]?.append(contentsOf: newRules)
             }
-            
-            return finalResult
+            return result
         }
-        
-        private func terminalDescription(_ symbol: Symbol) -> String {
-            if case .terminal(let t) = symbol {
-                return t.description
+
+        // MARK: - Helpers
+
+        private func group(_ productions: [Production]) -> [NonTerminal: [[Symbol]]] {
+            var grouped: [NonTerminal: [[Symbol]]] = [:]
+            for prod in productions {
+                grouped[prod.goal, default: []].append(prod.rule)
             }
-            return ""
+            return grouped
+        }
+
+        private func ungroup(_ grouped: [NonTerminal: [[Symbol]]]) -> [Production] {
+            grouped.flatMap { nt, rules in rules.map { Production(goal: nt, rule: $0) } }
         }
     }
 }
