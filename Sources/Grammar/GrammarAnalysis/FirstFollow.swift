@@ -285,9 +285,6 @@ extension Grammar {
     public func followSets() -> [NonTerminal: Set<Symbol>] {
         let eof: Symbol = .terminal(.meta(endofile))
         
-        // Pre-compute FIRST sets once
-//        let (firstSets, _) = firstAndFollow()
-        
         // Initialize FOLLOW sets
         var follow: [NonTerminal: Set<Symbol>] = [:]
         for nt in nonTerminals {
