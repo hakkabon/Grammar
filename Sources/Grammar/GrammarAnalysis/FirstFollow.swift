@@ -46,36 +46,6 @@ extension Grammar {
         return true
     }
     
-    /// The argument is a concatenation of terminals and nonterminals often found on the right
-    /// hand side of a production. This is nontrivial because some of the leading nonterminals
-    /// on the rhs can go to epsilon.
-    /// Calculate first(ω1 ω2 ... ωn) = first(ω1) ∪ first(ω2) ∪ first(ω3) ∪ ... ∪ { λ },
-    /// where terms are added based on if all of the terms before it in the rhs are nullable.
-    /// - Parameters:
-    ///   - symbols: concatenation of terminals and nonterminals
-    /// - Returns: set of the First symbols of given concatenation of terminals and nonterminals
-    public func computeFirstSet(of sequence: [Symbol], using firstSets: [Symbol:Set<Symbol>]) -> Set<Symbol> {
-        let eps: Symbol = .terminal(.meta(epsilon))
-        var sequenceFirstSet = Set<Symbol>()
-        var allPreviousNullable = true
-
-        for symbol in sequence {
-            guard let firstOfSymbol = firstSets[symbol] else { continue }
-            // Add all non-epsilon terminals from FIRST(symbol) to the result
-            sequenceFirstSet.formUnion(firstOfSymbol.filter { $0 != eps })
-            // If the symbol is not nullable, stop the process
-            if !firstOfSymbol.contains(eps) {
-                allPreviousNullable = false
-                break
-            }
-        }
-        // If all symbols in the sequence can derive epsilon, add epsilon to the result
-        if allPreviousNullable {
-            sequenceFirstSet.insert(eps)
-        }
-        return sequenceFirstSet
-    }
-    
     ///
     /// Calculates the First and Follow sets for the entire grammar.
     ///
@@ -180,7 +150,7 @@ extension Grammar {
                     let beta = Array(rule.dropFirst(index + 1))
                     
                     // Calculate First(Beta)
-                    let firstBeta = computeFirst(of: beta, using: firstSets)
+                    let firstBeta = first(of: beta, using: firstSets)
                     
                     // Add (First(Beta) - {ε}) to Follow(B)
                     let nonEpsilonFirst = firstBeta.filter { $0 != eps }
@@ -206,44 +176,34 @@ extension Grammar {
         return (firstSets, followSets)
     }
     
-    ///
-    /// Computes the FIRST set for a sequence of symbols (a rule).
-    /// This is used internally by `firstAndFollow` but is also useful for the Parser's prediction step.
-    ///
-    public func computeFirst(of rule: [Symbol], using firstSets: [Symbol: Set<Symbol>]) -> Set<Symbol> {
+    /// The argument is a concatenation of terminals and nonterminals often found on the right
+    /// hand side of a production. This is nontrivial because some of the leading nonterminals
+    /// on the rhs can go to epsilon.
+    /// Calculate first(ω1 ω2 ... ωn) = first(ω1) ∪ first(ω2) ∪ first(ω3) ∪ ... ∪ { λ },
+    /// where terms are added based on if all of the terms before it in the rhs are nullable.
+    /// - Parameters:
+    ///   - symbols: concatenation of terminals and nonterminals
+    /// - Returns: set of the First symbols of given concatenation of terminals and nonterminals
+    public func first(of sequence: [Symbol], using firstSets: [Symbol:Set<Symbol>]) -> Set<Symbol> {
         let eps: Symbol = .terminal(.meta(epsilon))
-        var result = Set<Symbol>()
-        var allNullable = true
-        
-        // If rule is empty, it implies Epsilon
-        if rule.isEmpty {
-            result.insert(eps)
-            return result
-        }
-        
-        for symbol in rule {
-            // Look up the First set for this symbol.
-            guard let currentFirst = firstSets[symbol] else {
-                continue
-            }
+        var sequenceFirstSet = Set<Symbol>()
+        var allPreviousNullable = true
 
-            // Add First(Symbol) - {ε} to results
-            result.formUnion(currentFirst.filter { $0 != eps })
-            
-            // If this symbol does NOT derive epsilon, we stop.
-            // The sequence is only nullable if ALL previous symbols were nullable.
-            if !currentFirst.contains(eps) {
-                allNullable = false
+        for symbol in sequence {
+            guard let firstOfSymbol = firstSets[symbol] else { continue }
+            // Add all non-epsilon terminals from FIRST(symbol) to the result
+            sequenceFirstSet.formUnion(firstOfSymbol.filter { $0 != eps })
+            // If the symbol is not nullable, stop the process
+            if !firstOfSymbol.contains(eps) {
+                allPreviousNullable = false
                 break
             }
         }
-        
-        // If we made it through the loop and everything was nullable, add ε to the result
-        if allNullable {
-            result.insert(eps)
+        // If all symbols in the sequence can derive epsilon, add epsilon to the result
+        if allPreviousNullable {
+            sequenceFirstSet.insert(eps)
         }
-        
-        return result
+        return sequenceFirstSet
     }
     
     /// Compute FIRST set of a symbol sequence using pre-computed FIRST sets.
@@ -260,55 +220,57 @@ extension Grammar {
     ///       - If the non-terminal is nullable, continue to the next symbol
     ///   - If we process all symbols and they're all nullable, the sequence is nullable
     ///
-    public func first(of symbols: [Symbol], using firstSets: [Symbol: Set<Symbol>]) -> (terminals: Set<Symbol>, nullable: Bool) {
-        let eps: Symbol = .terminal(.meta(epsilon))
+    public func first(of symbols: [Symbol]) -> (terminals: Set<Symbol>, nullable: Bool) {
         var result = Set<Symbol>()
-        
-        // Empty sequence is nullable and has empty FIRST set
-        if symbols.isEmpty {
-            return (Set(), true)
-        }
         
         for symbol in symbols {
             switch symbol {
-            case .terminal(let t):
-                // Terminal: add it to result and stop (not nullable unless it's epsilon)
-                if t.isEmpty {
-                    // This is epsilon itself
-                    continue  // Skip epsilon, continue to next symbol
-                } else {
-                    result.insert(symbol)
-                    return (result, false)
-                }
-                
+            case .terminal(let t) where t.isEmpty: continue
+            case .terminal(_):
+                result.insert(symbol)
+                return (result, false)
             case .nonTerminal(let nt):
-                // Non-terminal: add its FIRST set (minus epsilon)
-                if let firstSet = firstSets[.nonTerminal(nt)] {
-                    result.formUnion(firstSet.filter { $0 != eps })
-                    
-                    // If this non-terminal is not nullable, stop here
-                    if !firstSet.contains(eps) {
-                        return (result, false)
+                let (f, canBeNull) = firstOfNonterminal(nt)
+                 result.formUnion(f)
+                 if !canBeNull { return (result, false) }
+            case .metaSymbol(_): continue
+            }
+        }
+
+        return (result, true)
+    }
+
+    private func firstOfNonterminal(_ nonterminal: NonTerminal) -> (Set<Symbol>, Bool) {
+        let firstSets = firstSetFixpoint()
+        return (firstSets[nonterminal, default: []], nullableNonTerminals.contains(nonterminal))
+    }
+
+    private func firstSetFixpoint() -> [NonTerminal: Set<Symbol>] {
+        var firstSets: [NonTerminal: Set<Symbol>] = [:]
+        var changed = true
+        while changed {
+            changed = false
+            for production in productions {
+                for symbol in production.rule {
+                    switch symbol {
+                    case .terminal(let t) where t.isEmpty:
+                        continue
+                    case .terminal:
+                        if firstSets[production.goal, default: []].insert(symbol).inserted { changed = true }
+                        break
+                    case .nonTerminal(let nt):
+                        let symbols = firstSets[nt, default: []]
+                        for t in symbols {
+                            if firstSets[production.goal, default: []].insert(t).inserted { changed = true }
+                        }
+                        if !nullableNonTerminals.contains(nt) { break }
+                    case .metaSymbol: // These are the bnf/ebnf [], {}, (), |, etc. symbols
+                        break
                     }
-                    // Otherwise, continue to next symbol
-                } else {
-                    // Non-terminal not found in FIRST sets - treat as non-nullable
-                    return (result, false)
-                }
-                
-            case .metaSymbol(let meta):
-                // Meta-symbol: treat like epsilon (nullable) or stop
-                if meta == .epsilon {
-                    continue  // Skip epsilon, continue to next symbol
-                } else {
-                    result.insert(symbol)
-                    return (result, false)
                 }
             }
         }
-        
-        // If we made it through all symbols, the sequence is nullable
-        return (result, true)
+        return firstSets
     }
 
     /// Compute FOLLOW sets for all nonterminals.
@@ -324,7 +286,7 @@ extension Grammar {
         let eof: Symbol = .terminal(.meta(endofile))
         
         // Pre-compute FIRST sets once
-        let (firstSets, _) = firstAndFollow()
+//        let (firstSets, _) = firstAndFollow()
         
         // Initialize FOLLOW sets
         var follow: [NonTerminal: Set<Symbol>] = [:]
@@ -350,7 +312,7 @@ extension Grammar {
                     let beta = Array(rule.dropFirst(index + 1))
                     
                     // Compute FIRST(β) using pre-computed sets
-                    let (firstBeta, betaNullable) = first(of: beta, using: firstSets)
+                    let (firstBeta, betaNullable) = first(of: beta)
                     
                     // Add FIRST(β) - {ε} to FOLLOW(B)
                     let oldSize = follow[B]?.count ?? 0
