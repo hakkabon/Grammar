@@ -20,7 +20,7 @@ extension Grammar {
     //     If non-terminal B→α and all symbols appearing in α are variables that have
     //     been marked as nullable, then B is nullable.
     // Apply step 2 until no more variables can be marked as nullable.
-    func allNullableNonTerminals() -> Set<NonTerminal> {
+    public func allNullableNonTerminals() -> Set<NonTerminal> {
         var nullable: Set<NonTerminal> = []
 
         // Seed: direct epsilon productions
@@ -47,5 +47,24 @@ extension Grammar {
         }
         
         return nullable
+    }
+    
+    /// Check if a sequence of symbols can derive ε
+    public func isNullable(_ symbols: [Symbol]) -> Bool {
+        symbols.allSatisfy { symbol in
+            switch symbol {
+            case .terminal:
+                return false
+            case .nonTerminal(let nt):
+                return nullableNonTerminals.contains(nt)
+            case .metaSymbol:
+                return false
+            }
+        }
+    }
+    
+    /// Check if a nonterminal can derive ε
+    public func isNullable(_ nt: NonTerminal) -> Bool {
+        return nullableNonTerminals.contains(nt)
     }
 }
