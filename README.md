@@ -2,15 +2,22 @@
 
 A Swift package for constructing, analysing, transforming, and pretty-printing **Context-Free Grammars (CFGs)**. It covers the full lifecycle of a grammar: from parsing a textual notation (BNF, EBNF, WSN) into a structured representation, through analysis and normalisation, to generating railroad diagrams.
 
+[![Swift 5.9+](https://img.shields.io/badge/Swift-5.9%2B-orange.svg)](https://swift.org)  
+[![Platforms](https://img.shields.io/badge/platforms-macOS%2011%20%7C%20iOS%2014-blue.svg)](https://developer.apple.com/swift/)  
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)  
+
 ---
 
 ## Table of Contents
 
-1. [Overview](#overview)
-2. [Core Types](#core-types)
-3. [Package Structure](#package-structure)
-4. [Getting Started](#getting-started)
-5. [Subdirectory Reference](#subdirectory-reference)
+- [Overview](#overview)
+- [Core Types](#core-types)
+- [Package Structure](#package-structure)
+- [Getting Started](#getting-started)
+- [Subdirectory Reference](#subdirectory-reference)
+- [References](#references)
+- [Installation](#installationb)
+- [License](#license)
 
 ---
 
@@ -394,18 +401,21 @@ Add this package to your Swift project using the Swift Package Manager.
 Add to your Package.swift:  
 ```swift
 dependencies: [
-    .package(name: "Grammar", url: "https://github.com/hakkabon/Grammar", from: "0.0.1"),
+    .package(name: "Grammar", url: "https://github.com/hakkabon/Grammar", branch: "main"),
 ],
-```
-
-Then import:
-```
-import Grammar
+targets: [
+    .target(
+        name: "MyTarget", 
+        dependencies: [
+            .product(name: "Grammar", package: "Grammar"),
+        ]
+    ),
+]
 ```
 
 ---
 
 ## License
 
-MIT
+MIT License — see [LICENSE](LICENSE) for details.  
 
