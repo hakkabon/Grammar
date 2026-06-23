@@ -198,20 +198,64 @@ extension Grammar: Equatable {
 
 extension Grammar: CustomStringConvertible {
 
-    func givenOrder(productionOrder order: [String]) -> [NonTerminal:[Production]] {
-        let order: [String] = Array(order.uniqued())
+    /// Groups productions by their goal non-terminal and arranges the groups
+    /// according to a caller-supplied ordering of non-terminal names.
+    ///
+    /// Any non-terminal whose base name is absent from `order` is placed
+    /// after all the explicitly ordered groups, in the relative order in
+    /// which it first appears in `self.productions`. This makes the function
+    /// total: it never traps, and every goal in the grammar is represented
+    /// exactly once in the result, whether or not `order` mentions it.
+    ///
+    /// - Parameter order: The desired order of (base) non-terminal names.
+    ///   Duplicate entries are ignored after their first occurrence.
+    /// - Returns: An array of `(goal, productions)` pairs, sorted per
+    ///   `order`. A plain `Dictionary` cannot express the result of a sort,
+    ///   since Swift dictionaries have no defined iteration order — using
+    ///   one here would silently discard the ordering this function exists
+    ///   to produce.
+    func givenOrder(productionOrder order: [String]) -> [(NonTerminal, [Production])] {
+        let uniqueOrder = Array(order.uniqued())
+        let positionInOrder = Dictionary(uniqueKeysWithValues: zip(uniqueOrder, uniqueOrder.indices))
+        
         let groupedProductions = Dictionary(grouping: self.productions, by: \.goal)
-        let keyToPos = Dictionary(uniqueKeysWithValues: zip(order, 1...order.count))
-//        let sortedGroupedProductions = groupedProductions.sorted {
-        let _ = groupedProductions.sorted {
-            let arg1 = String($0.key.name.prefix(while: { $0 != "-" } ))
-            let arg2 = String($1.key.name.prefix(while: { $0 != "-" } ))
-            return keyToPos[arg1]! < keyToPos[arg2]!
+        
+        // First-appearance position of each goal in `self.productions`. Used
+        // both as the fallback ordering for goals missing from `order`, and
+        // as a deterministic tie-breaker for generated variants that share
+        // a base name (e.g. `S`, `S-1`, `S-2` all map to position of `S`).
+        var seenGoals = Set<NonTerminal>()
+        let appearanceOrder = self.productions.compactMap { production -> NonTerminal? in
+            seenGoals.insert(production.goal).inserted ? production.goal : nil
         }
-//        return order.compactMap { groupedProductions[$0] }
-        return [:]
+        let appearancePosition = Dictionary(uniqueKeysWithValues: zip(appearanceOrder, appearanceOrder.indices))
+        
+        func baseName(of goal: NonTerminal) -> String {
+            String(goal.name.prefix(while: { $0 != "-" }))
+        }
+        
+        // (bucket, primary, secondary):
+        //   bucket 0 — base name found in `order`; primary = its position there.
+        //   bucket 1 — not found; primary = position of first appearance.
+        // `secondary` is always the appearance position, breaking ties
+        // deterministically between variants that share a base name.
+        func sortKey(for goal: NonTerminal) -> (Int, Int, Int) {
+            let appearance = appearancePosition[goal] ?? .max
+            if let pos = positionInOrder[baseName(of: goal)] {
+                return (0, pos, appearance)
+            }
+            return (1, appearance, appearance)
+        }
+        
+        return groupedProductions
+            .sorted { lhs, rhs in
+                let l = sortKey(for: lhs.key)
+                let r = sortKey(for: rhs.key)
+                return (l.0, l.1, l.2) < (r.0, r.1, r.2)
+            }
+            .map { ($0.key, $0.value) }
     }
-
+    
     /// Returns a Backus-Naur form representation of the grammar.
     public var bnf: String {
         let groupedProductions = Dictionary(grouping: self.productions, by: \.goal)
