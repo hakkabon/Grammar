@@ -131,7 +131,7 @@ public class GrammarParser {
     let eolSymbols = Set<String>([".", ";"])
     
     // Keywords that are recognized without any enclosing quotation marks.
-    let keywords: [String] = ["lexical"]
+    let keywords: [String] = ["lexical", "Lexical", "LEXICAL"] // allow 3 different spellings
     
     private var tokenizer: ParserInput<Tokenizer>
     private var currentToken: Token
@@ -173,7 +173,7 @@ extension GrammarParser {
                 case .symbol(let symbol) where symbol == "<":
                     // Legitimate start of a productions in BNF notation.
                     expressions.append( try parseProduction() )
-                case .keyword(let keyword) where keyword == "Lexical" || keyword == "lexical":
+                case .keyword(let keyword) where keyword.lowercased() == "lexical":
                     let lexicalDefinitions = try parseLexicalDefinitions()
                     lexicalDefinitions.forEach( { expressions.append($0) } )
                 case .identifier:
@@ -500,8 +500,8 @@ extension GrammarParser {
     /// - Returns: a list of type 3 level expressions of type `BnfExpression`.
     private func parseLexicalDefinitions() throws -> [BnfExpression] {
         var lexicalDefinitions: [BnfExpression] = []
-        
-        try match(.keyword("lexical"), "Expected 'lexical' keyword")
+
+        advance() // allow "lexical" keyword with different spelling
         try match(.symbol("{"), "Expected '{' got something else")
         
         while currentToken.type != .symbol("}") {
