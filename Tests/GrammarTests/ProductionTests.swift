@@ -28,6 +28,51 @@ import Testing
     #expect(p.isNullable == true)
 }
 
+// MARK: - Epsilon normalization at creation
+
+@Test func production_normalizesEpsilonSymbol_toEmptyRule() {
+    // An explicit `.eps` symbol denotes the same thing as an empty rule, so
+    // `Production.init` should normalize it to the canonical `[]` form.
+    let p = Production(goal: "A", rule: [Symbol.terminal(.meta(.eps))])
+    #expect(p.rule == [])
+    #expect(p.rule.isEmpty)
+}
+
+@Test func production_normalizesLambdaSymbol_toEmptyRule() {
+    // 'λ' is just as valid a choice of epsilon meta character as 'ε'.
+    let p = Production(goal: "A", rule: [Symbol.terminal(.meta(.lambda))])
+    #expect(p.rule == [])
+}
+
+@Test func production_normalizesEmptyStringTerminal_toEmptyRule() {
+    let p = Production(goal: "A", rule: [t("")])
+    #expect(p.rule == [])
+}
+
+@Test func production_normalizesEpsilonAmongOtherSymbols_dropsOnlyEpsilon() {
+    // Epsilon is the identity element under concatenation: dropping it from
+    // anywhere in a rule must never remove the other symbols around it.
+    let p = Production(goal: "A", rule: [n("B"), Symbol.terminal(.meta(.eps)), t("c")])
+    #expect(p.rule == [n("B"), t("c")])
+}
+
+@Test func production_explicitEmptyRule_isUnaffectedByNormalization() {
+    let p = Production(goal: "A", rule: [])
+    #expect(p.rule == [])
+}
+
+@Test func production_description_rendersEpsilonForEmptyRule() {
+    let p = Production(goal: "A", rule: [])
+    #expect(p.description == "A --> ε")
+}
+
+@Test func production_description_rendersEpsilonForExplicitEpsilonSymbol() {
+    // Constructing with an explicit epsilon symbol normalizes to the same
+    // canonical empty rule, so the rendering is identical either way.
+    let p = Production(goal: "A", rule: [Symbol.terminal(.meta(.eps))])
+    #expect(p.description == "A --> ε")
+}
+
 @Test func production_isNullable_nonTerminal() {
     let p = Production(goal: "A", rule: [n("B")])
     #expect(p.isNullable == false)

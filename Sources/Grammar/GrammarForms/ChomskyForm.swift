@@ -110,7 +110,12 @@ extension Grammar {
             for (nt, rules) in grammar {
                 var newRules: [[Symbol]] = []
                 for rule in rules {
-                    // Drop pure ε-productions
+                    // Drop pure ε-productions. `rule` originates from `Production.rule`
+                    // (see `group(_:)` below), which is normalized at creation to `[]`
+                    // for any epsilon production, so `rule.isEmpty` is the case that
+                    // actually fires; the single-symbol check is kept only as a
+                    // defensive fallback for raw `[Symbol]` rules built up elsewhere
+                    // in this converter that haven't yet round-tripped through `Production`.
                     if rule.count == 1 && rule[0].isEpsilon { continue }
                     if rule.isEmpty { continue }
 

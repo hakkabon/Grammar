@@ -263,7 +263,11 @@ extension Grammar: CustomStringConvertible {
             let (pattern, productions) = entry
             let productionString = productions.map { production in
                 if production.rule.isEmpty {
-                    return "\"\""
+                    // An empty rule denotes an epsilon production. The grammar's
+                    // configured meta character (e.g. 'ε' or 'λ', see `epsilon`)
+                    // is rendered here purely for display — it is never part of
+                    // the stored `rule`.
+                    return "\(epsilon)"
                 } else {
                     return production.rule.map { symbol -> String in
                         switch symbol {
@@ -288,7 +292,8 @@ extension Grammar: CustomStringConvertible {
             let (pattern, productions) = entry
             let productionString = productions.map { production in
                 if production.rule.isEmpty {
-                    return "\"\""
+                    // See the corresponding comment in `bnf` above.
+                    return "\(epsilon)"
                 } else {
                     return production.rule.map { symbol -> String in
                         switch symbol {
@@ -313,7 +318,8 @@ extension Grammar: CustomStringConvertible {
             let (pattern, productions) = entry
             let productionString = productions.map { production in
                 if production.rule.isEmpty {
-                    return "\"\""
+                    // See the corresponding comment in `bnf` above.
+                    return "\(epsilon)"
                 } else {
                     return production.rule.map { symbol -> String in
                         switch symbol {

@@ -148,8 +148,12 @@ extension Grammar {
             result[nt] = nonRecursive.map { $0 + [.nonTerminal(prime)] }
 
             // A' → α A' | ε
+            // The epsilon alternative is the canonical empty rule `[]`; intermediate
+            // raw-[Symbol] rules in this converter are re-wrapped as `Production`
+            // values by `ungroup(_:)`, which would normalize this away regardless,
+            // but writing `[]` here keeps every stage of the pipeline consistent.
             var primeRules: [[Symbol]] = recursive.map { $0 + [.nonTerminal(prime)] }
-            primeRules.append([.terminal(.meta(.eps))])
+            primeRules.append([])
             result[prime] = primeRules
 
             return result

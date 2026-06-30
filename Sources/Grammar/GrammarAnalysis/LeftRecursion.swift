@@ -55,8 +55,8 @@ extension Grammar {
                 let alphaPart = Array(alphaRule.rule.dropFirst())
                 newRhsProductions.append(Production(goal: newNonTerminalName, rule: alphaPart + [newNonTerminal]))
             }
-            // Add epsilon production: A' -> epsilon
-            newRhsProductions.append(Production(goal: newNonTerminalName, rule: [.terminal(.meta(epsilon))]))
+            // Add epsilon production: A' -> ε, represented as the canonical empty rule `[]`.
+            newRhsProductions.append(Production(goal: newNonTerminalName, rule: []))
             
             return newLhsProductions + newRhsProductions
         }

@@ -93,7 +93,8 @@ extension Grammar {
                             case .suffix(let beta):
                                 p2 = Production(goal: V, rule: beta)
                             case .empty:
-                                p2 = Production(goal: V, rule: [.terminal(.meta(epsilon))])
+                                // The epsilon alternative is the canonical empty rule `[]`.
+                                p2 = Production(goal: V, rule: [])
                             }
 
                             currentProductions.insert(p2)

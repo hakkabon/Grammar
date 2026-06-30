@@ -97,6 +97,13 @@ extension Terminal: ExpressibleByUnicodeScalarLiteral {
 extension Terminal {
     
     /// Indicates that this terminal matches the empty string and only the empty string.
+    ///
+    /// This is `true` for `.string("")` and for the meta terminals that denote the
+    /// empty string — `.meta(.eps)`, `.meta(.lambda)`, and `.meta(.empty)` — regardless
+    /// of which one a particular grammar has configured as its display character
+    /// (see `Grammar.epsilon`). It is `false` for every other terminal, including
+    /// `.meta(.eof)` and `.meta(.eop)`, which are boundary markers rather than the
+    /// empty string itself.
     public var isEmpty: Bool {
         switch self {
         case .string(let string):
@@ -115,7 +122,7 @@ extension Terminal {
             return expression.pattern.isEmpty
             
         case .meta(let meta):
-            if meta == .eps || meta == .empty { return true }
+            if meta == .eps || meta == .lambda || meta == .empty { return true }
             else { return false }
         }
     }

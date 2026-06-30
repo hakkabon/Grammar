@@ -125,6 +125,36 @@ import Testing
     #expect(wsnOutput.contains("S"))
 }
 
+@Test func grammar_bnf_rendersEpsilonMetaCharacter_forEmptyProduction() async throws {
+    let grammar = Grammar(productions: [
+        Production(goal: "S", rule: [])
+    ], start: "S", lexicalTokens: [:])
+    
+    // The default epsilon meta character is 'ε', never a bare quoted empty string.
+    #expect(grammar.bnf.contains("ε"))
+    #expect(!grammar.bnf.contains("\"\""))
+}
+
+@Test func grammar_ebnf_rendersEpsilonMetaCharacter_forEmptyProduction() async throws {
+    let grammar = Grammar(productions: [
+        Production(goal: "S", rule: [])
+    ], start: "S", lexicalTokens: [:])
+    
+    #expect(grammar.ebnf.contains("ε"))
+    #expect(!grammar.ebnf.contains("\"\""))
+}
+
+@Test func grammar_wsn_rendersConfiguredEpsilonMetaCharacter() async throws {
+    var grammar = Grammar(productions: [
+        Production(goal: "S", rule: [])
+    ], start: "S", lexicalTokens: [:])
+    
+    // A grammar may choose 'λ' instead of the default 'ε' for display.
+    grammar.epsilon = .lambda
+    #expect(grammar.wsn.contains("λ"))
+    #expect(!grammar.wsn.contains("\"\""))
+}
+
 // MARK: - Grammar import from text
 
 @Test func grammar_import_bnf_basicProduction() async throws {
@@ -152,6 +182,11 @@ import Testing
     
     let nts = grammar.nullableNonTerminals
     #expect(nts.contains(NonTerminal(name: "S")))
+    
+    // The 'ε' alternative must be stored as the canonical empty rule `[]`,
+    // not as a production whose rule still contains an epsilon symbol.
+    let epsilonProd = grammar.productions.first { $0.goal == NonTerminal(name: "S") && $0.isNullable }
+    #expect(epsilonProd?.rule.isEmpty == true)
 }
 
 @Test func grammar_import_wsn_multipleRules() async throws {
@@ -176,6 +211,8 @@ import Testing
     // Should have the synthetic optional NT with ε and 'b' productions
     let hasEpsilon = prods.contains { $0.isNullable }
     #expect(hasEpsilon == true)
+    // ...and that nullable production's rule is the canonical empty rule.
+    #expect(prods.contains { $0.isNullable && $0.rule.isEmpty })
 }
 
 @Test func grammar_import_wsn_ebnf_repetition() async throws {
@@ -187,6 +224,7 @@ import Testing
     // The repetition NT should have an epsilon production
     let hasEpsilon = prods.contains { $0.isNullable }
     #expect(hasEpsilon == true)
+    #expect(prods.contains { $0.isNullable && $0.rule.isEmpty })
 }
 
 @Test func grammar_import_wsn_start_isSet() async throws {

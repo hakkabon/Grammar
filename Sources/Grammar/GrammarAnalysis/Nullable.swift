@@ -29,6 +29,13 @@ extension Grammar {
         }
 
         // Fixed-point algorithm: A is nullable if all symbols in some rhs are nullable
+        //
+        // Note: every `p` reaching this loop has `!p.isNullable`, which (since
+        // `Production` normalizes every rule at creation) means `p.rule` is
+        // guaranteed to be non-empty and free of epsilon-equivalent terminal
+        // symbols — there is no longer a literal epsilon symbol to look for
+        // inside a rule, only the rule being empty (`rule == []`), which is
+        // already handled by the seeding loop above.
         var changed = true
         while changed {
             changed = false
@@ -36,7 +43,6 @@ extension Grammar {
                 guard !nullable.contains(p.goal) else { continue }
                 let allNullable = p.rule.allSatisfy { symbol in
                     if case .nonTerminal(let nt) = symbol { return nullable.contains(nt) }
-                    if case .terminal(.meta(.eps)) = symbol { return true }
                     return false
                 }
                 if allNullable {

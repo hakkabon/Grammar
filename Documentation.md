@@ -116,6 +116,28 @@ Computed properties relevant to parsing:
 
 `Production` is `Hashable`, `Equatable`, `Comparable` (by goal then rule length), `Codable`.
 
+**Epsilon normalization.** Every initializer normalizes `rule` so that the *only*
+representation of an epsilon/empty production is `rule == []`. Concretely,
+`Production.init` drops any symbol for which `Symbol.isEpsilon` is `true` —
+`.terminal(.meta(.eps))`, `.terminal(.meta(.lambda))`, `.terminal(.meta(.empty))`,
+and `.terminal(.string(""))` — wherever it appears in the given rule (epsilon is
+the identity element of concatenation, so this never changes the language a rule
+derives). The practical upshot is that `rule.isEmpty` is always a reliable test
+for "this production derives nothing", everywhere in the package: `isNullable`,
+`Hygiene.eliminateEmpty`, `allNullableNonTerminals()`, the CNF/GNF converters,
+left-factoring, and left-recursion elimination all key off it. Code that builds
+productions (`StandardForm`, `StandardNotation`, the normal-form converters, …)
+is free to write `Production(goal: N, rule: [])` directly for an epsilon
+alternative, or to pass an explicit epsilon symbol — both produce the identical,
+canonical `Production`.
+
+The epsilon *meta character* ('ε' by default, or 'λ' / any other `MetaTerminal`
+a particular grammar is configured with via `Grammar.epsilon`) is strictly a
+rendering concern. It is never stored in `rule`; it only appears when a
+production is turned into text, via `Production.description` (which always uses
+the package default 'ε', since a bare `Production` has no `Grammar` to consult)
+or via `Grammar.bnf`/`ebnf`/`wsn` (which use that grammar's configured `epsilon`).
+
 ### Grammar
 
 `Grammar` is the top-level value type. Its core stored properties:
@@ -142,7 +164,7 @@ This set is used throughout analysis (FIRST/FOLLOW, CNF, GNF).
 - `terminals` — all terminals appearing in any rule
 - `startProduction` — the first production whose goal equals `start`
 
-**String output** (`bnf`, `ebnf`, `wsn`): Productions are grouped by goal (alphabetically), alternatives are joined with `|`, and the appropriate notation markers are applied.
+**String output** (`bnf`, `ebnf`, `wsn`): Productions are grouped by goal (alphabetically), alternatives are joined with `|`, and the appropriate notation markers are applied. A production whose `rule` is empty is rendered using the grammar's configured `epsilon` meta character (e.g. `<S> ::= ε`), never as a literal `""`.
 
 **`GrammarForm`** property observer: setting `grammarForm = .standard` triggers `rewriteToStandardForm()` in-place.
 
@@ -216,9 +238,10 @@ public indirect enum BnfExpression {
 
 - `.terminal` → `[.terminal(.string(value))]` or `[.terminal(.meta(…))]`
 - `.nonterminal` → `[.nonTerminal(NonTerminal(name:))]`
+- `.emptyStringSymbol` → `[]` (the canonical empty rule; see "Epsilon normalization" above)
 - `.alternative` → introduces a fresh `@alt_N` non-terminal with one production per branch
-- `.optional` → introduces `@opt_N → content | ε`
-- `.repetition` → introduces `@rep_N → content @rep_N | ε` (right-recursive)
+- `.optional` → introduces `@opt_N → content` and `@opt_N → []` (written "`| ε`" below, but stored as the empty rule)
+- `.repetition` → introduces `@rep_N → content @rep_N` and `@rep_N → []` (right-recursive; "`| ε`" again denotes the empty rule)
 - `.repetitionOnePlus` → introduces `@rep1_N → content | content @rep1_N`
 - `.grouping` → inlined as a sequence (no new non-terminal unless it contains an alternative)
 
@@ -237,6 +260,10 @@ The algorithm walks each production's `rule: [Symbol]` array, finds matching bra
 | `( … )` grouping | `A → α(X₁…Xₙ)β` becomes `A → αNβ`, `N → X₁…Xₙ` |
 | `[ … ]` option | `A → α[X₁…Xₙ]β` becomes `A → αNβ`, `N → X₁…Xₙ`, `N → ε` |
 | `{ … }` repetition | `A → γ{X₁…Xₘ}δ` becomes `A → γNδ`, `N → X₁…XₘN`, `N → ε` |
+
+Every `N → ε` shown above is constructed as `Production(goal: N, rule: [])` — the
+canonical empty rule (see "Epsilon normalization" in §2) — not as a rule
+containing an explicit epsilon symbol.
 
 After bracket-pair reduction, `rewriteAlternations` splits any remaining `| MetaSymbol` positions into separate productions.
 
@@ -343,7 +370,7 @@ Three classical grammar cleaning operations:
 
 **`eliminateUnitRules`**: Replaces every chain `A → B → … → C → α` (where each step is a unit production) with the direct rule `A → α`, recording the chain for traceability.
 
-**`eliminateEmpty`**: Removes ε-productions by expanding every occurrence of a nullable non-terminal. Preserves the empty production for the start symbol only.
+**`eliminateEmpty`**: Removes ε-productions by expanding every occurrence of a nullable non-terminal. Preserves the empty production for the start symbol only. This relies entirely on `rule.isEmpty` to recognize an ε-production — which `Production.init`'s epsilon normalization (see §2) guarantees is always how one is represented, regardless of which meta character or notation introduced it.
 
 ---
 

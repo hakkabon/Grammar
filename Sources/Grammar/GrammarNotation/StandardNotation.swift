@@ -72,7 +72,12 @@ public struct StandardNotation {
                 return [.nonTerminal(NonTerminal(name: value))]
                 
             case .emptyStringSymbol:
-                return [.terminal(.meta(.eps))]
+                // Epsilon is represented internally as the empty rule `[]`, never as an
+                // explicit symbol; `Production.init` would normalize it away regardless,
+                // but writing `[]` directly here keeps the intent unambiguous. The
+                // configured meta character ('ε' by default) is applied only when the
+                // grammar is rendered for display.
+                return []
                 
             case .sequence(let items):
                 return items.flatMap { processRule($0) }
@@ -101,8 +106,8 @@ public struct StandardNotation {
                 let contentSymbols = processRule(expr)
                 addProduction(goal: auxGoal, rule: contentSymbols)
                 
-                // Path 2: Epsilon (it was skipped)
-                addProduction(goal: auxGoal, rule: [.terminal(.meta(.eps))])
+                // Path 2: Epsilon (it was skipped) — represented as the empty rule.
+                addProduction(goal: auxGoal, rule: [])
                 
                 return [.nonTerminal(auxGoal)]
                 
@@ -119,8 +124,8 @@ public struct StandardNotation {
                 contentSymbols.append(.nonTerminal(auxGoal)) // Add self at end
                 addProduction(goal: auxGoal, rule: contentSymbols)
                 
-                // Path 2: Epsilon (end of loop)
-                addProduction(goal: auxGoal, rule: [.terminal(.meta(.eps))])
+                // Path 2: Epsilon (end of loop) — represented as the empty rule.
+                addProduction(goal: auxGoal, rule: [])
                 
                 return [.nonTerminal(auxGoal)]
                 
