@@ -5,10 +5,7 @@ import PackageDescription
 
 let package = Package(
     name: "Grammar",
-    platforms: [
-        .macOS(.v11),
-        .iOS(.v14),
-    ],
+    platforms: [.macOS(.v11), .iOS(.v14)],
     products: [
         .library(name: "Grammar", targets: ["Grammar"])
     ],
