@@ -52,14 +52,14 @@ public indirect enum BnfExpression: Codable, Equatable, Hashable {
     // Regular expressions
     case regex(String,String)
 
-    // Meta terminal: epsilon
-    case emptyStringSymbol(String)
+    // Empty string symbol, typically called epsilon
+    case empty(String)
 
-    // Meta terminal: eof (end-of-file)
-    case endOfFileSymbol(String)
+//    // Meta terminal: eof (end-of-file)
+//    case endOfFileSymbol(String)
 
     // Start symbol in grammar (non-terminal)
-    case startSymbol(String)
+    case start(String)
 }
 
 extension BnfExpression: CustomStringConvertible {
@@ -158,12 +158,12 @@ struct TreePrinter {
         case .grouping(let e):              return ("Group (...)", [e])
         case .terminal(let val):            return ("'\(val)'", [])
         case .nonterminal(let val):         return ("<\(val)>", [])
-        case .range(let id, let a, let b):  return ("Range \(id) : \(a)..\(b)", [])
-        case .list(let id, let list):       return ("Range \(id) : \(list)", [])
+        case .range(let id, let a, let b):  return ("Range /\(id)/ /\(a)..\(b)/", [])
+        case .list(let id, let list):       return ("List /\(id)/ /\(list)/", [])
         case .regex(let id, let p):         return ("Regex /\(id)/ /\(p)/", [])
-        case .emptyStringSymbol(let s):     return ("Empty (\(s))", [])
-        case .endOfFileSymbol(let s):       return ("Eof (\(s))", [])
-        case .startSymbol(let s):           return ("Start (\(s))", [])
+        case .empty(let s):                 return ("Empty (\(s))", [])
+//        case .endOfFileSymbol(let s):       return ("Eof (\(s))", [])
+        case .start(let s):                 return ("Start (\(s))", [])
         }
     }
 }

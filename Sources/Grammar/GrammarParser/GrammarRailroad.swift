@@ -101,7 +101,7 @@ public struct GrammarToRailroad {
             let element = convert(expr)
             return group(sequence([element, choice([element])]), label: "1..n")
             
-        case .emptyStringSymbol:
+        case .empty:
             return skip()
             
         case .regex(let identifier, let pattern):

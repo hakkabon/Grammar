@@ -25,12 +25,10 @@ import OSLog
 ///   - reduceRepetitions()
 ///   - rewriteAlternations()
 /// ```
-/// Precondition:
-/// The grammar must be in flat form, just as you would write the production rules on paper,
-/// not containing any constructs containing the extended notation.
 ///
-/// Note:
-/// The structured rewriting on extended BNF notation is found elesewhere, namely in ``
+/// Note on rewriting:
+/// The rewriting of structured extended BNF notation, which is the result of parsing
+/// the grammar in text form, is found in `StandardNotation,swift`.
 ///
 /// Note on epsilon:
 /// Wherever this file introduces an empty/epsilon alternative (the `N → ε` productions

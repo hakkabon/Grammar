@@ -121,16 +121,16 @@ public struct GrammarPrettyPrinter {
         case .list(let id, let list):
             return "\(id) : \(list)"
             
-        case .regex(let identifier, let pattern):
-            return "\(identifier) : /\(pattern)/"
+        case .regex(let id, let pattern):
+            return "\(id) : /\(pattern)/"
             
-        case .emptyStringSymbol(let symbol):
+        case .empty(let symbol):
             return "epsilon: \(symbol)"
 
-        case .endOfFileSymbol(let symbol):
-            return "EOF: \(symbol)"
+//        case .endOfFileSymbol(let symbol):
+//            return "EOF: \(symbol)"
 
-        case .startSymbol(let start):
+        case .start(let start):
             return "Start synbol: \(start)"
         }
     }

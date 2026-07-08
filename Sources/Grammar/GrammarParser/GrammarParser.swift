@@ -174,7 +174,7 @@ extension GrammarParser {
                     // Legitimate start of a productions in BNF notation.
                     expressions.append( try parseProduction() )
                 case .keyword(let keyword) where keyword.lowercased() == "lexical":
-                    let lexicalDefinitions = try parseLexicalDefinitions()
+                    let lexicalDefinitions = try parseLexicalDefinitions(keyword)
                     lexicalDefinitions.forEach( { expressions.append($0) } )
                 case .identifier:
                     // Legitimate start of a productions in EBNF/WSN notation.
@@ -482,7 +482,7 @@ extension GrammarParser {
         guard case .nonterminal(let nonterminal) = try parseNonterminal() else {
             throw makeError("expected '<' identifier '>' | identifier in expression.")
         }
-        return .startSymbol(nonterminal)
+        return .start(nonterminal)
     }
 }
 
@@ -498,10 +498,11 @@ extension GrammarParser {
     ///     terminated with new line or terminator character.
     ///
     /// - Returns: a list of type 3 level expressions of type `BnfExpression`.
-    private func parseLexicalDefinitions() throws -> [BnfExpression] {
+    private func parseLexicalDefinitions(_ keyword: String) throws -> [BnfExpression] {
         var lexicalDefinitions: [BnfExpression] = []
 
-        advance() // allow "lexical" keyword with different spelling
+        // allow "lexical" keyword with different spelling
+        try match(.keyword(keyword), "Expected 'lexical' keyword")
         try match(.symbol("{"), "Expected '{' got something else")
         
         while currentToken.type != .symbol("}") {
@@ -511,7 +512,7 @@ extension GrammarParser {
                 lexicalDefinitions.append(try parseLexicalDefinition(for: identifier))
 
             case .literal(let name):
-                throw makeError("Expected indentifier found '\(name)'")
+                throw makeError("Expected indentifier found literal '\(name)'")
                 
             default:
                 throw makeError("Unexpected token '\(currentToken)'")
@@ -534,7 +535,7 @@ extension GrammarParser {
     ///
     /// - Returns: a type 3 level expression of type `BnfExpression`.
     private func parseLexicalDefinition(for identifier: String) throws -> BnfExpression {
-        advance()
+        try match(.identifier(identifier), "Expected indentifier found '\(identifier)'")
 
         if !definingSymbols.contains(currentToken.type.value) {
             throw makeError("Expected definition operator ':', '=' or '::=' after '\(identifier)'")
@@ -587,6 +588,8 @@ extension GrammarParser {
         // Allow for an optional line termination - most people are used to this convention.
         if eolSymbols.contains(currentToken.type.value) { advance() }
 
+        print("holy moly a list of elements")
+        
         return .list(identifier, elements)
     }
 }

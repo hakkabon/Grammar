@@ -13,14 +13,15 @@ public struct StandardNotation {
     public init() {}
     
     /// Converts an EBNF syntax tree into a flat list of BNF Productions using plain
-    /// BNF notation. The syntax tree looks somthing lioke the following:
+    /// BNF notation. The syntax tree looks somthing like the following:
     /// ```
     /// Syntax Root
-    ///    ├── Regex /rulename/ /[a-zA-Z][a-zA-Z0-9-_]*/
-    ///    ├── Regex /number/ /[\d]+/
-    ///    ├── Range "a".."z"
-    ///    ├── metaStart <non-terminal>
-    ///    ├── metaEmpty ε
+    ///    ├── Regex <id> : /[a-zA-Z][a-zA-Z0-9-_]*/
+    ///    ├── Regex <id> : /[\d]+/
+    ///    ├── Range <id> : \u{0400}..\u{04FF}
+    ///    ├── List <id> : ["\\u{1F600}", "\\u{1F602}"]
+    ///    ├── Start <non-terminal>
+    ///    ├── Empty ε
     ///    ├── Production: <non-terminal>
     ///    │   └── Alternative
     ///    │       ├── <rule>
@@ -34,7 +35,7 @@ public struct StandardNotation {
         var productions: [Production] = []
         var nonTerminals = Set<NonTerminal>()           // generated non-terminals
         var start: String = ""                          // generic grammar only
-        var empty: String = ""                          // generic grammar only
+        var empty: String = "ε"                         // generic grammar only
         var tokens: [String:String] = [:]
         
         func addProduction(goal: NonTerminal, rule: [Symbol]) {
@@ -71,7 +72,7 @@ public struct StandardNotation {
             case .nonterminal(let value):
                 return [.nonTerminal(NonTerminal(name: value))]
                 
-            case .emptyStringSymbol:
+            case .empty:
                 // Epsilon is represented internally as the empty rule `[]`, never as an
                 // explicit symbol; `Production.init` would normalize it away regardless,
                 // but writing `[]` directly here keeps the intent unambiguous. The
@@ -187,10 +188,10 @@ public struct StandardNotation {
                         addProduction(goal: goal, rule: symbols)
                     }
                 }
-                else if case .startSymbol(let symbol) = expression {
+                else if case .start(let symbol) = expression {
                     start = symbol
                 }
-                else if case .emptyStringSymbol(let symbol) = expression {
+                else if case .empty(let symbol) = expression {
                     empty = symbol
                 }
 //                else if case .range(let identifier, let a, let b) = expression {
