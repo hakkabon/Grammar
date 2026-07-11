@@ -33,6 +33,24 @@ public func rt(_ value: String) throws -> Symbol {
     return try Symbol.terminal(Terminal(expression: value))
 }
 
+/// Creates a new character-range terminal symbol, matched when the tokenized
+/// subsequence is a single character falling inside `range`.
+///
+/// - Parameter range: Inclusive range of matched characters, e.g. `"0" ... "9"`
+/// - Returns: A range terminal symbol
+public func ct(_ range: ClosedRange<Character>) -> Symbol {
+    return Symbol.terminal(Terminal(range: range))
+}
+
+/// Creates a new list terminal symbol, matched when the tokenized subsequence
+/// is equal to one of the given literal alternatives.
+///
+/// - Parameter values: Literal alternatives, e.g. `lt("true", "false")`
+/// - Returns: A list terminal symbol
+public func lt(_ values: String...) -> Symbol {
+    return Symbol.terminal(Terminal(list: values))
+}
+
 /// Creates a new meta-terminal symbol
 ///
 /// - Parameter name: Name of the meta-terminal symbol

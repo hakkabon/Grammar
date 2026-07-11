@@ -39,7 +39,7 @@ precedencegroup AlternativePrecedence {
 /// 3) (... con ...) <+> (... alt ...)
 /// 4) (... alt ...) <+> (... con ...)
 public func <+> (lhs: ProductionResult, rhs: ProductionResult) -> ProductionResult {
-    switch (lhs,lhs) {
+    switch (lhs,rhs) {
     case let (.con(lsymbols), .con(rsymbols)):
         let result = ProductionResult.con(lsymbols + rsymbols)
         return result

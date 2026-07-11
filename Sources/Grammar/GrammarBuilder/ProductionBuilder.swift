@@ -7,41 +7,12 @@
 
 import Foundation
 
-/*
-public struct Rule {
-    /// Starting pattern
-    public let goal: NonTerminal
-    
-    /// Symbols produced by substitution from the goal non terminal.
-    public let rule: [Symbol]
-
-    public init(goal: NonTerminal, rule: [Symbol]) {
-        self.goal = goal
-        self.rule = rule
-    }
-
-    public init(goal: NonTerminal, @ProductionBuilder builder: () -> ProductionResult) {
-        self.goal = goal
-
-        switch builder() {
-        case let .con(symbols):
-            self.rule = symbols
-        case let .alt(symbols):
-            self.rule = symbols.flatMap { $0 }
-        }
-    }
-}
-
-extension Rule {
-    func generate(goal: NonTerminal, @ProductionBuilder builder: () -> ProductionResult) -> [Production] {
-        switch builder() {
-        case let .con(symbols):
-            return [Production(goal: goal, rule: symbols)]
-        case let .alt(symbols):
-            return symbols.compactMap { rule in
-                return Production(goal: goal, rule: rule)
-            }
-        }
-    }
-}
-*/
+// This file previously held an early, entirely-commented-out draft of `Rule`
+// (superseded by the `Rule` in `RuleBuilder.swift`) plus a `generate(goal:builder:)`
+// helper that duplicated what `RuleNotation.rewrite(_:)` now does properly.
+// The `@ProductionBuilder`/`ProductionResult` mini-DSL that draft depended on
+// still exists in `GrammarBuilders.swift`/`ProductionResult.swift` and is used
+// by `Production.init(goal:builder:)`, but is otherwise unused elsewhere in
+// this module — see the `GrammarBuilder` review notes for whether it's worth
+// keeping two independent EBNF-composition DSLs (`Rule`/`Cat`/`Alt`/... vs.
+// `ProductionResult`/`<+>`/`<|>`) side by side long-term.
