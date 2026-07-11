@@ -31,12 +31,12 @@ public struct StandardNotation {
     ///    ├── Production: ...
     ///```
     /// - Returns: all productions reduced to BNF and all newly generated non-terminals.
-    public func rewriteToStandardNotation(syntax: BnfExpression) -> ([Production], Set<NonTerminal>, start: String, empty: String, lexical: [String:String]) {
+    public func rewriteToStandardNotation(syntax: BnfExpression) -> ([Production], Set<NonTerminal>, start: String, empty: String, lexical: [String: Terminal]) {
         var productions: [Production] = []
         var nonTerminals = Set<NonTerminal>()           // generated non-terminals
         var start: String = ""                          // generic grammar only
         var empty: String = "ε"                         // generic grammar only
-        var tokens: [String:String] = [:]
+        var tokens: [String: Terminal] = [:]
         
         func addProduction(goal: NonTerminal, rule: [Symbol]) {
             let prod = Production(goal: goal, rule: rule)
@@ -70,6 +70,20 @@ public struct StandardNotation {
                 return [.terminal(.meta(meta))]
                 
             case .nonterminal(let value):
+                // A reference like `<Identifier>` inside an ordinary production is
+                // ambiguous on its own: it looks exactly like a reference to another
+                // production. If `value` is the identifier of a `lexical { }`
+                // declaration (regex, range, or list), it isn't a non-terminal at
+                // all — it names a Terminal. Resolving it here means every lexical
+                // definition is automatically usable wherever it's referenced,
+                // with no separate wiring required downstream by any parser: this
+                // becomes a plain `Symbol.terminal(...)`, exactly like a literal
+                // `"+"` or `<Identifier>` would already be if it were a hand-written
+                // `.terminal` case. `tokens` must already be fully populated by the
+                // time this runs — see the two-pass structure below.
+                if let terminal = tokens[value] {
+                    return [.terminal(terminal)]
+                }
                 return [.nonTerminal(NonTerminal(name: value))]
                 
             case .empty:
@@ -171,9 +185,56 @@ public struct StandardNotation {
         
         // If the root is .syntax, process all children.
         if case .syntax(let expressions) = syntax {
+
+            // Pass 1: collect every lexical definition (regex, range, list) into
+            // `tokens` *before* any production is rewritten. A `lexical { }` block
+            // may appear anywhere in the source file relative to the productions
+            // that reference its identifiers — collecting them up front, in a
+            // dedicated pass, means `processRule`'s `.nonterminal` case (which
+            // consults `tokens`) always sees the complete set, regardless of
+            // declaration order in the source grammar.
+            for expression in expressions {
+                switch expression {
+                case .regex(let identifier, let pattern):
+                    if let terminal = try? Terminal(expression: pattern) {
+                        tokens[identifier] = terminal
+                    } else {
+                        print("Warning: invalid regular expression for lexical definition '\(identifier)': /\(pattern)/")
+                    }
+
+                case .range(let identifier, let lower, let upper):
+                    if let lowerChar = lower.first, lower.count == 1,
+                       let upperChar = upper.first, upper.count == 1,
+                       lowerChar <= upperChar {
+                        tokens[identifier] = Terminal(range: lowerChar ... upperChar)
+                    } else {
+                        print("Warning: invalid range definition '\(identifier)': '\(lower)' .. '\(upper)'")
+                    }
+
+                case .list(let identifier, let elements):
+                    tokens[identifier] = Terminal(list: elements)
+
+                default:
+                    break
+                }
+            }
+
+            // Pass 2: rewrite productions, `start`, and `empty`. `tokens` is now
+            // complete, so any `<identifier>` reference resolved inside `processRule`
+            // that names a lexical definition is substituted with its `Terminal`
+            // automatically, wherever in the grammar it's used.
             for expression in expressions {
                 if case .production(let goal, let body) = expression {
                     let goal = NonTerminal(name: goal)
+
+                    // A production goal that shares its name with a lexical
+                    // definition is ambiguous authoring (which one wins when the
+                    // name is referenced elsewhere?) rather than something to
+                    // silently resolve one way or the other.
+                    if tokens[goal.name] != nil {
+                        print("Warning: '\(goal.name)' is defined both as a production and as a lexical identifier; the lexical definition takes precedence wherever '\(goal.name)' is referenced.")
+                    }
+
                     // If the body is an alternative (A | B), we generate multiple productions for the same goal.
                     // Goal -> A
                     // Goal -> B
@@ -193,15 +254,6 @@ public struct StandardNotation {
                 }
                 else if case .empty(let symbol) = expression {
                     empty = symbol
-                }
-//                else if case .range(let identifier, let a, let b) = expression {
-//                    let terminal = Terminal(range: a ... b)
-//                }
-//                else if case .list(let identifier, let list) = expression {
-//                    let terminal = Terminal(list: list.map { Unicode.Scalar($0)! })
-//                }
-                else if case .regex(let identifier, let pattern) = expression {
-                    tokens.updateValue(pattern, forKey: identifier)
                 }
             }
         } else {

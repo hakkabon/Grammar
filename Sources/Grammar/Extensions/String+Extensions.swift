@@ -213,6 +213,9 @@ public extension String {
 		case .string(string: let string):
 			return self[startIndex...].hasPrefix(string)
 
+		case .stringList(let list):
+			return list.contains { self[startIndex...].hasPrefix($0) }
+
         case .meta(_):
             return false
 		}
@@ -243,6 +246,20 @@ public extension String {
 		case .string(string: let prefixString):
 			let range = startIndex ..< (self.index(startIndex, offsetBy: prefixString.count, limitedBy: endIndex) ?? endIndex)
 			return self.range(of: prefixString, range: range)
+
+		case .stringList(let list):
+			// Maximal munch: if more than one alternative matches at this position
+			// (e.g. list contains both "in" and "instanceof"), prefer the longest,
+			// matching the tie-breaking convention used elsewhere for lexical
+			// disambiguation in this package.
+			guard let longest = list
+				.filter({ self[startIndex...].hasPrefix($0) })
+				.max(by: { $0.count < $1.count })
+			else {
+				return nil
+			}
+			let range = startIndex ..< (self.index(startIndex, offsetBy: longest.count, limitedBy: endIndex) ?? endIndex)
+			return self.range(of: longest, range: range)
 
         case .meta(_):
             return nil

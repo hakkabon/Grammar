@@ -18,8 +18,13 @@ public enum Terminal {
     /// Single unicode character, for example "\u{1F600}" or "😀".
 //    case scalar(scalar: Unicode.Scalar)
 
-    /// List of characters (unicde.scalars). The terminal is matched when the
-//    case characterList(list: [Unicode.Scalar])
+    /// List of literal string alternatives, for example the lexical definition
+    /// `EMOTICONS ::= "\u{1F600}" | "\u{1F602}"`. The terminal is matched when the
+    /// tokenized subsequence is equal to any one of the strings in `list`. Widened
+    /// from a plain `[Unicode.Scalar]` to `[String]` because `lexical { }` list
+    /// elements are arbitrary literal tokens (e.g. multi-character keywords), not
+    /// necessarily single scalars.
+    case stringList(list: [String])
 
     /// Range of characters, for example "a" .. "z"
     case characterRange(range: ClosedRange<Character>)
@@ -47,13 +52,13 @@ extension Terminal {
 //        self = .scalar(scalar: value)
 //    }
 
-    /// Creates a terminal that is a list of characters. The terminal is matched when the tokenized
-    /// subsequence is a character contained in this list.
+    /// Creates a terminal that is a list of literal string alternatives. The terminal is matched
+    /// when the tokenized subsequence is equal to one of the strings in this list.
     ///
-    /// - Parameter list: List of matched characters
-//    public init(list: [Unicode.Scalar]) {
-//        self = .characterList(list: list)
-//    }
+    /// - Parameter list: List of matched literal alternatives
+    public init(list: [String]) {
+        self = .stringList(list: list)
+    }
 
     /// Creates a terminal that is a range of characters. The terminal is matched when the tokenized
     /// subsequence is a character contained in this range.
@@ -112,9 +117,9 @@ extension Terminal {
 //        case .scalar(let scalar):
 //            return String(UnicodeScalar(scalar)).isEmpty
 
-//        case .characterList(list: let list):
-//            return false
-            
+        case .stringList(let list):
+            return list.allSatisfy { $0.isEmpty }
+
         case .characterRange:
             return false
             
@@ -139,7 +144,7 @@ extension Terminal: Codable {
     private enum TerminalCoding: String, Codable {
         case string
 //        case scalar
-//        case characterList
+        case stringList
         case characterRange
         case regularExpression
         case meta
@@ -156,9 +161,9 @@ extension Terminal: Codable {
 //            let scalar = try container.decode(Unicode.Scalar.self, forKey: .value)
 //            self = .scalar(scalar: scalar)
 
-//        case .characterList:
-//            let list = try container.decode([Unicode.Scalar].self, forKey: .value)
-//            self = .characterList(list: list)
+        case .stringList:
+            let list = try container.decode([String].self, forKey: .value)
+            self = .stringList(list: list)
 
         case .characterRange:
             let range = try container.decode(ClosedRange<Character>.self, forKey: .value)
@@ -193,9 +198,9 @@ extension Terminal: Codable {
 //            try container.encode(TerminalCoding.scalar, forKey: .type)
 //            try container.encode(scalar, forKey: .value)
 
-//        case .characterList(let list):
-//            try container.encode(TerminalCoding.characterList, forKey: .type)
-//            try container.encode(list, forKey: CodingKeys.value)
+        case .stringList(let list):
+            try container.encode(TerminalCoding.stringList, forKey: .type)
+            try container.encode(list, forKey: CodingKeys.value)
 
         case .characterRange(let range):
             try container.encode(TerminalCoding.characterRange, forKey: .type)
@@ -222,8 +227,8 @@ extension Terminal: Hashable {
 //        case .scalar(let scalar):
 //            hasher.combine(scalar.hashValue)
 
-//        case .characterList(let list):
-//            hasher.combine(list.hashValue)
+        case .stringList(let list):
+            hasher.combine(list)
 
         case .characterRange(let range):
             hasher.combine(range.hashValue)
@@ -266,7 +271,18 @@ extension Terminal: Equatable {
             
         case (.characterRange(range: let lr), .characterRange(range: let rr)):
             return lr == rr
-            
+
+        // A range-typed terminal (e.g. a lexical `'a' .. 'z'` definition) matches a
+        // tokenized subsequence when that subsequence is a single character falling
+        // inside the range. This mirrors the existing regex <-> string cross-matching
+        // below and is what lets lexical `range` definitions be used as ordinary
+        // terminals once they are substituted into productions.
+        case (.characterRange(range: let range), .string(string: let string)):
+            return string.count == 1 && range.contains(string[string.startIndex])
+
+        case (.string(string: let string), .characterRange(range: let range)):
+            return string.count == 1 && range.contains(string[string.startIndex])
+
         case (.regularExpression(expression: let regex), .string(string: let string)):
             return string.matches(regex.pattern)
 
@@ -275,6 +291,17 @@ extension Terminal: Equatable {
 
         case (.regularExpression(expression: let le), .regularExpression(expression: let re)):
             return le.pattern == re.pattern
+
+        // A list-typed terminal (e.g. a lexical `"a" | "b" | "c"` definition) matches a
+        // tokenized subsequence when it is equal to one of the alternatives in the list.
+        case (.stringList(list: let list), .string(string: let string)):
+            return list.contains(string)
+
+        case (.string(string: let string), .stringList(list: let list)):
+            return list.contains(string)
+
+        case (.stringList(list: let ll), .stringList(list: let rl)):
+            return ll == rl
 
         case (.meta(let lmeta), .meta(let rmeta)):
             return lmeta == rmeta
@@ -301,8 +328,8 @@ extension Terminal: CustomStringConvertible {
 //        case .scalar(let scalar):
 //            return "\"\(scalar)\""
 
-//        case .characterList(let list):
-//            return list.map { "\($0)" }.joined(separator: " | ")
+        case .stringList(let list):
+            return list.map { "\"\($0)\"" }.joined(separator: " | ")
 
         case .regularExpression(let expression) where expression.pattern.contains("\""):
             let escapedValue = expression.pattern.singleQuoteLiteralEscaped
