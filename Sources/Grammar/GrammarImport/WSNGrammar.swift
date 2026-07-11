@@ -70,7 +70,7 @@ extension Grammar {
 
         // Convert to Flat Productions
         let converter = StandardNotation()
-        let (productions, _, _, _, tokens) = converter.rewriteToStandardNotation(syntax: syntaxTree)
+        let (productions, nonTerminals, _, _, tokens) = converter.rewriteToStandardNotation(syntax: syntaxTree)
 
         self.init(productions: productions, start: NonTerminal(name: start), lexicalTokens: tokens)
         self.syntaxTree = syntaxTree

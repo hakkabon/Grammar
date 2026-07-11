@@ -74,7 +74,7 @@ public struct Cat: RuleRender, CustomStringConvertible {
     public var description: String {
         "\(component)"
     }
-    init(@RuleCatBuilder _ content: () -> Rule.Expression) {
+    public init(@RuleCatBuilder _ content: () -> Rule.Expression) {
         self.component = content()
     }
     func render() -> String {
@@ -87,7 +87,7 @@ public struct Alt: RuleRender, CustomStringConvertible {
     public var description: String {
         "\(component)"
     }
-    init(@RuleAltBuilder _ content: () -> Rule.Expression) {
+    public init(@RuleAltBuilder _ content: () -> Rule.Expression) {
         self.component = content()
     }
     func render() -> String {
@@ -100,7 +100,7 @@ public struct Seq: RuleRender, CustomStringConvertible {
     public var description: String {
         "\(component)"
     }
-    init(@RuleCatBuilder _ content: () -> Rule.Expression) {
+    public init(@RuleCatBuilder _ content: () -> Rule.Expression) {
         self.component = .seq(content())
     }
     func render() -> String {
@@ -113,7 +113,7 @@ public struct Grp: RuleRender, CustomStringConvertible {
     public var description: String {
         "\(component)"
     }
-    init(@RuleCatBuilder _ content: () -> Rule.Expression) {
+    public init(@RuleCatBuilder _ content: () -> Rule.Expression) {
         self.component = .grp(content())
     }
     func render() -> String {
@@ -126,7 +126,7 @@ public struct Opt: RuleRender, CustomStringConvertible {
     public var description: String {
         "\(component)"
     }
-    init(@RuleCatBuilder _ content: () -> Rule.Expression) {
+    public init(@RuleCatBuilder _ content: () -> Rule.Expression) {
         self.component = .opt(content())
     }
     func render() -> String {
@@ -135,8 +135,9 @@ public struct Opt: RuleRender, CustomStringConvertible {
 }
 
 
-// Add the following
-// • ZeroOrMore {}
-// • OneOrMore {}
-// • Optional {}
-// • Subtract {}
+// `Seq` already implements zero-or-more repetition and `Opt` already implements
+// optionality, despite their names not saying so directly. Still missing,
+// unlike the text-based grammar notations which already support both via
+// `BnfExpression.repetitionOnePlus` and the EBNF `-` operator:
+// • OneOrMore {}  — repetition requiring at least one occurrence
+// • Subtract {}   — set exclusion, e.g. `character - "'"`

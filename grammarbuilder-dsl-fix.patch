@@ -1,0 +1,592 @@
+diff --git a/Sources/Grammar/Grammar.swift b/Sources/Grammar/Grammar.swift
+index ea20141..173593e 100644
+--- a/Sources/Grammar/Grammar.swift
++++ b/Sources/Grammar/Grammar.swift
+@@ -175,24 +175,26 @@ extension Grammar {
+ 
+ extension Grammar {
+     
++    /// Creates a new grammar from a set of already-flattened `Production` values.
++    /// Prefer the `Rule`-based initializer below unless you already have `[Symbol]`
++    /// rules in hand — it does not offer the EBNF-style `Alt`/`Opt`/`Seq`/`Grp` sugar.
+     public init(start: NonTerminal, @GrammarBuilder builder: () -> [Production]) {
+         self.init(productions: builder(), start: start, lexicalTokens: [:])
+     }
+         
++    /// Creates a new grammar from the Swift DSL (`Rule` / `Cat` / `Alt` / `Seq` /
++    /// `Grp` / `Opt`), e.g.:
++    /// ```swift
++    /// Grammar(start: "digit") {
++    ///     Rule("digit") { Alt { t("0") ; t("1") ; t("2") } }
++    /// }
++    /// ```
++    /// - Parameters:
++    ///   - start: Root non-terminal
++    ///   - builder: A `@GrammarRuleBuilder` closure producing the grammar's rules
+     public init(start: NonTerminal, @GrammarRuleBuilder builder: () -> [Rule]) {
+-        let _ : [Rule.Expression] = builder().map { $0.rule }
+-        
+-//        let array: String = builder().map{ "\($0)" }.joined(separator: " ")
+-//        let contents = """
+-//        "\(array)"
+-//        """
+-//        print(contents)
+-
+-        let prods: String = builder().map{ "\($0.render())" }.joined(separator: "\n")
+-        print(prods)
+-
+-        
+-        self.init(productions: [], start: "", lexicalTokens: [:])
++        let (productions, generatedNonTerminals) = RuleNotation().rewrite(builder())
++        self.init(productions: productions, start: start, empty: .eps, lexicalTokens: [:], generatedNonTerminals: generatedNonTerminals)
+     }
+ }
+ 
+diff --git a/Sources/Grammar/GrammarBuilder/GrammarBuilders.swift b/Sources/Grammar/GrammarBuilder/GrammarBuilders.swift
+index 844aeaa..de6e80b 100644
+--- a/Sources/Grammar/GrammarBuilder/GrammarBuilders.swift
++++ b/Sources/Grammar/GrammarBuilder/GrammarBuilders.swift
+@@ -35,7 +35,11 @@ public enum ProductionBuilder {
+ 
+ @resultBuilder
+ public struct GrammarRuleBuilder {
+-    
++
++    public static func buildBlock() -> [Rule] {
++        return []
++    }
++
+     public static func buildBlock(_ component: Rule) -> Rule {
+         return component
+     }
+diff --git a/Sources/Grammar/GrammarBuilder/ProductionBuilder.swift b/Sources/Grammar/GrammarBuilder/ProductionBuilder.swift
+index 78f3270..480149c 100644
+--- a/Sources/Grammar/GrammarBuilder/ProductionBuilder.swift
++++ b/Sources/Grammar/GrammarBuilder/ProductionBuilder.swift
+@@ -7,41 +7,12 @@
+ 
+ import Foundation
+ 
+-/*
+-public struct Rule {
+-    /// Starting pattern
+-    public let goal: NonTerminal
+-    
+-    /// Symbols produced by substitution from the goal non terminal.
+-    public let rule: [Symbol]
+-
+-    public init(goal: NonTerminal, rule: [Symbol]) {
+-        self.goal = goal
+-        self.rule = rule
+-    }
+-
+-    public init(goal: NonTerminal, @ProductionBuilder builder: () -> ProductionResult) {
+-        self.goal = goal
+-
+-        switch builder() {
+-        case let .con(symbols):
+-            self.rule = symbols
+-        case let .alt(symbols):
+-            self.rule = symbols.flatMap { $0 }
+-        }
+-    }
+-}
+-
+-extension Rule {
+-    func generate(goal: NonTerminal, @ProductionBuilder builder: () -> ProductionResult) -> [Production] {
+-        switch builder() {
+-        case let .con(symbols):
+-            return [Production(goal: goal, rule: symbols)]
+-        case let .alt(symbols):
+-            return symbols.compactMap { rule in
+-                return Production(goal: goal, rule: rule)
+-            }
+-        }
+-    }
+-}
+-*/
++// This file previously held an early, entirely-commented-out draft of `Rule`
++// (superseded by the `Rule` in `RuleBuilder.swift`) plus a `generate(goal:builder:)`
++// helper that duplicated what `RuleNotation.rewrite(_:)` now does properly.
++// The `@ProductionBuilder`/`ProductionResult` mini-DSL that draft depended on
++// still exists in `GrammarBuilders.swift`/`ProductionResult.swift` and is used
++// by `Production.init(goal:builder:)`, but is otherwise unused elsewhere in
++// this module — see the `GrammarBuilder` review notes for whether it's worth
++// keeping two independent EBNF-composition DSLs (`Rule`/`Cat`/`Alt`/... vs.
++// `ProductionResult`/`<+>`/`<|>`) side by side long-term.
+diff --git a/Sources/Grammar/GrammarBuilder/ProductionResult.swift b/Sources/Grammar/GrammarBuilder/ProductionResult.swift
+index 84e9f02..ada656b 100644
+--- a/Sources/Grammar/GrammarBuilder/ProductionResult.swift
++++ b/Sources/Grammar/GrammarBuilder/ProductionResult.swift
+@@ -39,7 +39,7 @@ precedencegroup AlternativePrecedence {
+ /// 3) (... con ...) <+> (... alt ...)
+ /// 4) (... alt ...) <+> (... con ...)
+ public func <+> (lhs: ProductionResult, rhs: ProductionResult) -> ProductionResult {
+-    switch (lhs,lhs) {
++    switch (lhs,rhs) {
+     case let (.con(lsymbols), .con(rsymbols)):
+         let result = ProductionResult.con(lsymbols + rsymbols)
+         return result
+diff --git a/Sources/Grammar/GrammarBuilder/RuleBuilder.swift b/Sources/Grammar/GrammarBuilder/RuleBuilder.swift
+index 4ff9d5f..26161dc 100644
+--- a/Sources/Grammar/GrammarBuilder/RuleBuilder.swift
++++ b/Sources/Grammar/GrammarBuilder/RuleBuilder.swift
+@@ -74,7 +74,7 @@ public struct Cat: RuleRender, CustomStringConvertible {
+     public var description: String {
+         "\(component)"
+     }
+-    init(@RuleCatBuilder _ content: () -> Rule.Expression) {
++    public init(@RuleCatBuilder _ content: () -> Rule.Expression) {
+         self.component = content()
+     }
+     func render() -> String {
+@@ -87,7 +87,7 @@ public struct Alt: RuleRender, CustomStringConvertible {
+     public var description: String {
+         "\(component)"
+     }
+-    init(@RuleAltBuilder _ content: () -> Rule.Expression) {
++    public init(@RuleAltBuilder _ content: () -> Rule.Expression) {
+         self.component = content()
+     }
+     func render() -> String {
+@@ -100,7 +100,7 @@ public struct Seq: RuleRender, CustomStringConvertible {
+     public var description: String {
+         "\(component)"
+     }
+-    init(@RuleCatBuilder _ content: () -> Rule.Expression) {
++    public init(@RuleCatBuilder _ content: () -> Rule.Expression) {
+         self.component = .seq(content())
+     }
+     func render() -> String {
+@@ -113,7 +113,7 @@ public struct Grp: RuleRender, CustomStringConvertible {
+     public var description: String {
+         "\(component)"
+     }
+-    init(@RuleCatBuilder _ content: () -> Rule.Expression) {
++    public init(@RuleCatBuilder _ content: () -> Rule.Expression) {
+         self.component = .grp(content())
+     }
+     func render() -> String {
+@@ -126,7 +126,7 @@ public struct Opt: RuleRender, CustomStringConvertible {
+     public var description: String {
+         "\(component)"
+     }
+-    init(@RuleCatBuilder _ content: () -> Rule.Expression) {
++    public init(@RuleCatBuilder _ content: () -> Rule.Expression) {
+         self.component = .opt(content())
+     }
+     func render() -> String {
+@@ -135,8 +135,9 @@ public struct Opt: RuleRender, CustomStringConvertible {
+ }
+ 
+ 
+-// Add the following
+-// • ZeroOrMore {}
+-// • OneOrMore {}
+-// • Optional {}
+-// • Subtract {}
++// `Seq` already implements zero-or-more repetition and `Opt` already implements
++// optionality, despite their names not saying so directly. Still missing,
++// unlike the text-based grammar notations which already support both via
++// `BnfExpression.repetitionOnePlus` and the EBNF `-` operator:
++// • OneOrMore {}  — repetition requiring at least one occurrence
++// • Subtract {}   — set exclusion, e.g. `character - "'"`
+diff --git a/Sources/Grammar/GrammarBuilder/RuleNotation.swift b/Sources/Grammar/GrammarBuilder/RuleNotation.swift
+new file mode 100644
+index 0000000..a74d02c
+--- /dev/null
++++ b/Sources/Grammar/GrammarBuilder/RuleNotation.swift
+@@ -0,0 +1,130 @@
++//
++//  RuleNotation.swift
++//  Grammar
++//
++
++import Foundation
++
++/// Converts the Swift-DSL representation of a grammar (`[Rule]`, built via the
++/// `Rule` / `Cat` / `Alt` / `Seq` / `Grp` / `Opt` result-builder types in
++/// `RuleBuilder.swift`) into the same flat `[Production]` representation that
++/// `StandardNotation` produces for text-based grammars (BNF/EBNF/WSN/generic).
++///
++/// The two are deliberately structural mirrors of one another:
++///
++/// | `Rule.Expression`   | `BnfExpression`             | Meaning                       |
++/// |----------------------|------------------------------|-------------------------------|
++/// | `.cat(a, b)`          | `.sequence([...])`          | implicit concatenation        |
++/// | `.alt(a, b)`          | `.alternative([...])`       | choice — generates an aux NT  |
++/// | `.seq(e)`             | `.repetition(e)`            | zero-or-more — aux NT         |
++/// | `.grp(e)`             | `.grouping(e)`              | precedence only, no aux NT    |
++/// | `.opt(e)`             | `.optional(e)`              | zero-or-one — aux NT          |
++/// | `.sym(symbol)`        | `.terminal` / `.nonterminal` | already a resolved `Symbol`  |
++/// | `.eps` / `.empty`     | `.empty`                    | epsilon, stored as `[]`       |
++///
++/// Unlike the text pipeline, `.sym(Symbol)` already carries a fully resolved
++/// `Symbol` — including compiled `Terminal`s built inline via `rt(_:)`,
++/// `lt(_:)`, etc. — so there is no separate `lexical { }` resolution pass:
++/// whatever `Terminal` was attached at the call site is used as-is.
++public struct RuleNotation {
++
++    public init() {}
++
++    /// - Parameter rules: The rules collected by a `@GrammarRuleBuilder` closure.
++    /// - Returns: all productions reduced to BNF, and any newly generated
++    ///   (synthetic) non-terminals — e.g. `@alt_3` for a nested alternative.
++    public func rewrite(_ rules: [Rule]) -> (productions: [Production], generatedNonTerminals: Set<NonTerminal>) {
++        var productions: [Production] = []
++        var nonTerminals = Set<NonTerminal>()
++
++        func addProduction(goal: NonTerminal, rule: [Symbol]) {
++            productions.append(Production(goal: goal, rule: rule))
++        }
++
++        // Mirrors `StandardNotation`'s synthetic-nonterminal naming and reuses
++        // the same shared `Counter`, so DSL-built grammars and text-imported
++        // grammars can never collide even if combined in the same process.
++        // Note: '@' denotes internal/synthetic.
++        func generateNonterminal(withPrefix prefix: String) -> NonTerminal {
++            var symbol = "@\(prefix)_\(Counter.next())"
++            while nonTerminals.contains(NonTerminal(name: symbol)) {
++                symbol = "@\(prefix)_\(Counter.next())"
++            }
++            return NonTerminal(name: symbol)
++        }
++
++        // `Alt { a; b; c }` builds a left-associated binary tree
++        // `.alt(.alt(a, b), c)` (see `RuleAltBuilder.buildPartialBlock`);
++        // flatten it back into an ordered list of branches.
++        func alternatives(of expression: Rule.Expression) -> [Rule.Expression] {
++            if case .alt(let lhs, let rhs) = expression {
++                return alternatives(of: lhs) + alternatives(of: rhs)
++            }
++            return [expression]
++        }
++
++        /// Converts a `Rule.Expression` into a linear list of Symbols.
++        /// If nested structures (alternation, optionality, repetition) are
++        /// found, it generates synthetic productions as side effects and
++        /// returns the new `NonTerminal` symbol in their place.
++        func flatten(_ expression: Rule.Expression) -> [Symbol] {
++            switch expression {
++            case .sym(let symbol):
++                return [symbol]
++
++            case .eps, .empty:
++                return []
++
++            case .cat(let a, let b):
++                return flatten(a) + flatten(b)
++
++            // Nested alternation, e.g. A -> B (C | D) E.
++            // Action: Create Aux. Aux -> C, Aux -> D. Return [B, Aux, E]
++            case .alt:
++                let auxGoal = generateNonterminal(withPrefix: "alt")
++                nonTerminals.insert(auxGoal)
++                for branch in alternatives(of: expression) {
++                    addProduction(goal: auxGoal, rule: flatten(branch))
++                }
++                return [.nonTerminal(auxGoal)]
++
++            // Repetition { ... } (zero or more, right-recursive).
++            // Action: Create Aux. Aux -> B Aux, Aux -> ε. Return [Aux]
++            case .seq(let e):
++                let auxGoal = generateNonterminal(withPrefix: "rep")
++                nonTerminals.insert(auxGoal)
++                addProduction(goal: auxGoal, rule: flatten(e) + [.nonTerminal(auxGoal)])
++                addProduction(goal: auxGoal, rule: [])
++                return [.nonTerminal(auxGoal)]
++
++            // Optional [ ... ].
++            // Action: Create Aux. Aux -> B, Aux -> ε. Return [Aux]
++            case .opt(let e):
++                let auxGoal = generateNonterminal(withPrefix: "opt")
++                nonTerminals.insert(auxGoal)
++                addProduction(goal: auxGoal, rule: flatten(e))
++                addProduction(goal: auxGoal, rule: [])
++                return [.nonTerminal(auxGoal)]
++
++            // Grouping only ever affects precedence while writing the DSL
++            // itself; it never needs its own synthetic non-terminal — this
++            // mirrors how `StandardNotation` handles `.grouping`.
++            case .grp(let e):
++                return flatten(e)
++            }
++        }
++
++        for rule in rules {
++            // A top-level alternation on a named rule becomes multiple
++            // productions sharing that rule's own goal, exactly as
++            // `StandardNotation` does for a `.production` body that is
++            // `.alternative` — no synthetic non-terminal is needed since the
++            // rule's own name already serves that role.
++            for branch in alternatives(of: rule.rule) {
++                addProduction(goal: rule.goal, rule: flatten(branch))
++            }
++        }
++
++        return (productions, nonTerminals)
++    }
++}
+diff --git a/Sources/Grammar/GrammarImport/WSNGrammar.swift b/Sources/Grammar/GrammarImport/WSNGrammar.swift
+index a39e5b1..7e1cc29 100644
+--- a/Sources/Grammar/GrammarImport/WSNGrammar.swift
++++ b/Sources/Grammar/GrammarImport/WSNGrammar.swift
+@@ -70,7 +70,7 @@ extension Grammar {
+ 
+         // Convert to Flat Productions
+         let converter = StandardNotation()
+-        let (productions, _, _, _, tokens) = converter.rewriteToStandardNotation(syntax: syntaxTree)
++        let (productions, nonTerminals, _, _, tokens) = converter.rewriteToStandardNotation(syntax: syntaxTree)
+ 
+         self.init(productions: productions, start: NonTerminal(name: start), lexicalTokens: tokens)
+         self.syntaxTree = syntaxTree
+diff --git a/Sources/Grammar/Symbols/Symbols.swift b/Sources/Grammar/Symbols/Symbols.swift
+index 9b83460..66456d5 100644
+--- a/Sources/Grammar/Symbols/Symbols.swift
++++ b/Sources/Grammar/Symbols/Symbols.swift
+@@ -33,6 +33,24 @@ public func rt(_ value: String) throws -> Symbol {
+     return try Symbol.terminal(Terminal(expression: value))
+ }
+ 
++/// Creates a new character-range terminal symbol, matched when the tokenized
++/// subsequence is a single character falling inside `range`.
++///
++/// - Parameter range: Inclusive range of matched characters, e.g. `"0" ... "9"`
++/// - Returns: A range terminal symbol
++public func ct(_ range: ClosedRange<Character>) -> Symbol {
++    return Symbol.terminal(Terminal(range: range))
++}
++
++/// Creates a new list terminal symbol, matched when the tokenized subsequence
++/// is equal to one of the given literal alternatives.
++///
++/// - Parameter values: Literal alternatives, e.g. `lt("true", "false")`
++/// - Returns: A list terminal symbol
++public func lt(_ values: String...) -> Symbol {
++    return Symbol.terminal(Terminal(list: values))
++}
++
+ /// Creates a new meta-terminal symbol
+ ///
+ /// - Parameter name: Name of the meta-terminal symbol
+diff --git a/Tests/GrammarTests/GrammarBuilderTests.swift b/Tests/GrammarTests/GrammarBuilderTests.swift
+new file mode 100644
+index 0000000..f0ee34f
+--- /dev/null
++++ b/Tests/GrammarTests/GrammarBuilderTests.swift
+@@ -0,0 +1,152 @@
++import Testing
++@testable import Grammar
++
++// MARK: - Plain concatenation
++
++@Test func rule_plainConcatenation_producesOneFlatProduction() {
++    let rules = [Rule("A") { t("x"); t("y") }]
++
++    let (productions, generated) = RuleNotation().rewrite(rules)
++
++    #expect(productions == [Production(goal: "A", rule: [t("x"), t("y")])])
++    #expect(generated.isEmpty)
++}
++
++@Test func rule_emptyBody_producesEpsilonProduction() {
++    let rules = [Rule("A") {}]
++
++    let (productions, _) = RuleNotation().rewrite(rules)
++
++    #expect(productions.count == 1)
++    #expect(productions.first?.rule.isEmpty == true)
++}
++
++// MARK: - Top-level alternation: no synthetic non-terminal needed
++
++@Test func rule_topLevelAlternation_producesOneProductionPerBranch_noSyntheticNonTerminal() {
++    let rules = [Rule("A") { Alt { t("x"); t("y"); t("z") } }]
++
++    let (productions, generated) = RuleNotation().rewrite(rules)
++
++    #expect(productions.count == 3)
++    #expect(productions.map(\.goal).allSatisfy { $0 == NonTerminal(name: "A") })
++    #expect(productions.map(\.rule) == [[t("x")], [t("y")], [t("z")]])
++    #expect(generated.isEmpty) // "A" itself already serves as the choice point
++}
++
++// MARK: - Nested alternation: synthetic non-terminal required
++
++@Test func rule_nestedAlternation_generatesSyntheticNonTerminal() throws {
++    let rules = [Rule("A") { t("x"); Alt { t("y"); t("z") } }]
++
++    let (productions, generated) = RuleNotation().rewrite(rules)
++
++    #expect(generated.count == 1)
++    let auxGoal = try #require(generated.first)
++    #expect(auxGoal.name.hasPrefix("@alt_"))
++
++    let aProduction = try #require(productions.first { $0.goal == NonTerminal(name: "A") })
++    #expect(aProduction.rule == [t("x"), .nonTerminal(auxGoal)])
++
++    let auxProductions = productions.filter { $0.goal == auxGoal }
++    #expect(auxProductions.map(\.rule) == [[t("y")], [t("z")]])
++}
++
++// MARK: - Optional
++
++@Test func rule_optional_generatesSyntheticNonTerminalWithEpsilonBranch() throws {
++    let rules = [Rule("A") { t("x"); Opt { t("y") } }]
++
++    let (productions, generated) = RuleNotation().rewrite(rules)
++
++    let auxGoal = try #require(generated.first)
++    #expect(auxGoal.name.hasPrefix("@opt_"))
++
++    let aProduction = try #require(productions.first { $0.goal == NonTerminal(name: "A") })
++    #expect(aProduction.rule == [t("x"), .nonTerminal(auxGoal)])
++
++    let auxProductions = productions.filter { $0.goal == auxGoal }.map(\.rule)
++    #expect(auxProductions.contains([t("y")]))
++    #expect(auxProductions.contains([])) // the epsilon branch
++}
++
++// MARK: - Repetition (zero or more)
++
++@Test func rule_repetition_generatesRightRecursiveSyntheticNonTerminal() throws {
++    let rules = [Rule("A") { t("x"); Seq { t("y") } }]
++
++    let (productions, generated) = RuleNotation().rewrite(rules)
++
++    let auxGoal = try #require(generated.first)
++    #expect(auxGoal.name.hasPrefix("@rep_"))
++
++    let auxProductions = productions.filter { $0.goal == auxGoal }.map(\.rule)
++    #expect(auxProductions.contains([t("y"), .nonTerminal(auxGoal)])) // recursive branch
++    #expect(auxProductions.contains([]))                              // terminating branch
++}
++
++// MARK: - Grouping is transparent: it never introduces its own synthetic non-terminal
++
++@Test func rule_groupingAroundPlainConcatenation_isTransparent() {
++    let rules = [Rule("A") { Grp { t("x"); t("y") } }]
++
++    let (productions, generated) = RuleNotation().rewrite(rules)
++
++    #expect(productions == [Production(goal: "A", rule: [t("x"), t("y")])])
++    #expect(generated.isEmpty)
++}
++
++// MARK: - Rules never need to appear in dependency order
++
++// Unlike the text-based notations (BNF/EBNF/WSN/generic), where `<Identifier>`
++// is just a string until `StandardNotation` resolves it, the DSL's `n(_:)`
++// already produces a fully-formed `Symbol.nonTerminal` at the call site — so
++// there is no lookup table to populate first, and declaration order between
++// rules was never able to matter here. This test exists mainly as documentation
++// of that guarantee.
++@Test func rules_referencingEachOther_resolveRegardlessOfDeclarationOrder() {
++    let rules = [
++        Rule("A") { n("B") },
++        Rule("B") { t("x") },
++    ]
++
++    let (productions, _) = RuleNotation().rewrite(rules)
++
++    let aProduction = productions.first { $0.goal == NonTerminal(name: "A") }
++    #expect(aProduction?.rule == [n("B")])
++}
++
++// MARK: - lt(_:) / ct(_:) helpers (parity with Terminal.stringList / .characterRange)
++
++@Test func lt_buildsAStringListTerminal() {
++    let rules = [Rule("Bool") { lt("true", "false") }]
++
++    let (productions, _) = RuleNotation().rewrite(rules)
++
++    #expect(productions.first?.rule == [.terminal(Terminal(list: ["true", "false"]))])
++}
++
++@Test func ct_buildsACharacterRangeTerminal() {
++    let rules = [Rule("Digit") { ct("0" ... "9") }]
++
++    let (productions, _) = RuleNotation().rewrite(rules)
++
++    #expect(productions.first?.rule == [.terminal(Terminal(range: "0" ... "9"))])
++}
++
++// MARK: - End-to-end via Grammar(start:builder:) — regression guard
++
++// Before this patch, `Grammar(start:builder:)` discarded the built rules
++// entirely and returned `Grammar(productions: [], start: "", lexicalTokens: [:])`
++// no matter what was written in the closure. These two checks exist
++// specifically to catch that regression if it ever comes back.
++@Test func grammarFromDSL_isNotEmpty_andHasTheDeclaredStartSymbol() {
++    let grammar = Grammar(start: "A") {
++        Rule("A") { Alt { t("x"); Cat { t("x"); n("B") } } }
++        Rule("B") { t("y") }
++    }
++
++    #expect(grammar.start == NonTerminal(name: "A"))
++    #expect(grammar.productions.isEmpty == false)
++    #expect(grammar.productions.count == 3) // two branches for A, one for B
++}
+diff --git a/Tests/GrammarTests/GrammarTests.swift b/Tests/GrammarTests/GrammarTests.swift
+index e35851f..73b8d5e 100644
+--- a/Tests/GrammarTests/GrammarTests.swift
++++ b/Tests/GrammarTests/GrammarTests.swift
+@@ -2,19 +2,51 @@ import Testing
+ @testable import Grammar
+ 
+ @Test func testBnfGrammar() async throws {
+-    
+-//    print(Grammar.bnfGrammar)
+-    
++    let grammar = Grammar.bnfGrammar
++
++    #expect(grammar.start == NonTerminal(name: "syntax"))
++    #expect(grammar.productions.isEmpty == false)
++    #expect(grammar.nonTerminals.contains(NonTerminal(name: "rule-name")))
++
++    // `symbol` is a flat 31-way top-level alternation of single-character
++    // literals - it should become 31 productions for the same goal, with no
++    // synthetic non-terminal standing in for the choice.
++    let symbolProductions = grammar.productions.filter { $0.goal == NonTerminal(name: "symbol") }
++    #expect(symbolProductions.count == 31)
++    #expect(symbolProductions.allSatisfy { $0.rule.count == 1 && $0.rule.first?.isTerminal == true })
++
++    // `letter` is defined via an inline regex terminal (`rt(...)`), not a
++    // reference to another rule.
++    let letterProduction = grammar.productions.first { $0.goal == NonTerminal(name: "letter") }
++    #expect(letterProduction?.rule.first?.isTerminal == true)
+ }
+ 
+ @Test func testEbnfGrammar() async throws {
+-    
+-//    print(Grammar.ebnfGrammar)
++    let grammar = Grammar.ebnfGrammar
+ 
++    #expect(grammar.start == NonTerminal(name: "syntax"))
++    #expect(grammar.productions.isEmpty == false)
++    #expect(grammar.nonTerminals.contains(NonTerminal(name: "factor")))
++
++    // `termination` is a plain two-way alternation: `.` | `;`.
++    let terminationProductions = grammar.productions.filter { $0.goal == NonTerminal(name: "termination") }
++    #expect(terminationProductions.count == 2)
+ }
+ 
+ @Test func testWsnGrammar() async throws {
+-    
+-//    print(Grammar.wsnGrammar)
++    let grammar = Grammar.wsnGrammar
++
++    #expect(grammar.start == NonTerminal(name: "syntax"))
++    #expect(grammar.productions.isEmpty == false)
++    #expect(grammar.nonTerminals.contains(NonTerminal(name: "factor")))
++
++    // `terminator` is a plain two-way alternation: ";" | ".".
++    let terminatorProductions = grammar.productions.filter { $0.goal == NonTerminal(name: "terminator") }
++    #expect(terminatorProductions.count == 2)
+ 
++    // `factor` mixes plain references with Opt/Grp/Seq - each of those
++    // branches should resolve to a synthetic non-terminal standing in for
++    // the parenthesized/bracketed/braced sub-expression.
++    let factorProductions = grammar.productions.filter { $0.goal == NonTerminal(name: "factor") }
++    #expect(factorProductions.count == 5)
+ }

@@ -175,24 +175,26 @@ extension Grammar {
 
 extension Grammar {
     
+    /// Creates a new grammar from a set of already-flattened `Production` values.
+    /// Prefer the `Rule`-based initializer below unless you already have `[Symbol]`
+    /// rules in hand — it does not offer the EBNF-style `Alt`/`Opt`/`Seq`/`Grp` sugar.
     public init(start: NonTerminal, @GrammarBuilder builder: () -> [Production]) {
         self.init(productions: builder(), start: start, lexicalTokens: [:])
     }
         
+    /// Creates a new grammar from the Swift DSL (`Rule` / `Cat` / `Alt` / `Seq` /
+    /// `Grp` / `Opt`), e.g.:
+    /// ```swift
+    /// Grammar(start: "digit") {
+    ///     Rule("digit") { Alt { t("0") ; t("1") ; t("2") } }
+    /// }
+    /// ```
+    /// - Parameters:
+    ///   - start: Root non-terminal
+    ///   - builder: A `@GrammarRuleBuilder` closure producing the grammar's rules
     public init(start: NonTerminal, @GrammarRuleBuilder builder: () -> [Rule]) {
-        let _ : [Rule.Expression] = builder().map { $0.rule }
-        
-//        let array: String = builder().map{ "\($0)" }.joined(separator: " ")
-//        let contents = """
-//        "\(array)"
-//        """
-//        print(contents)
-
-        let prods: String = builder().map{ "\($0.render())" }.joined(separator: "\n")
-        print(prods)
-
-        
-        self.init(productions: [], start: "", lexicalTokens: [:])
+        let (productions, generatedNonTerminals) = RuleNotation().rewrite(builder())
+        self.init(productions: productions, start: start, empty: .eps, lexicalTokens: [:], generatedNonTerminals: generatedNonTerminals)
     }
 }
 

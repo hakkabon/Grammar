@@ -35,7 +35,11 @@ public enum ProductionBuilder {
 
 @resultBuilder
 public struct GrammarRuleBuilder {
-    
+
+    public static func buildBlock() -> [Rule] {
+        return []
+    }
+
     public static func buildBlock(_ component: Rule) -> Rule {
         return component
     }
