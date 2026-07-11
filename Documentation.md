@@ -397,7 +397,7 @@ A → B C D E  ⟹  A → B Y₀
 
 Public API: `Grammar.toChomskyNormalForm() -> Grammar`.
 
-### Greibach Normal Form (`GreilbachForm.swift`)
+### Greibach Normal Form (`GreibachForm.swift`)
 
 **Goal**: Every production is `A → a α` where `a` is a terminal and `α ∈ V*`.
 
@@ -407,7 +407,7 @@ Six sequential steps:
 
 **Step 3 — Order and substitute**: Sort non-terminals alphabetically as A₁…Aₙ. For each Aᵢ, replace any rule `Aᵢ → Aⱼ γ` (j < i) by substituting all Aⱼ-productions. This enforces the ordering invariant.
 
-**Step 4 — Immediate left-recursion elimination**: For each Aᵢ that has rules of the form `Aᵢ → Aᵢ α | β`, introduce `Aᵢ'` and rewrite to `Aᵢ → β Aᵢ'` and `Aᵢ' → α Aᵢ' | ε`.
+**Step 4 — Immediate left-recursion elimination**: For each Aᵢ that has rules of the form `Aᵢ → Aᵢ α | β`, introduce `Aᵢ'` and rewrite to `Aᵢ → β Aᵢ' | β` and `Aᵢ' → α Aᵢ' | α`. This epsilon-free formulation avoids introducing any ε-productions, keeping the grammar in strict GNF.
 
 **Step 5 — Back-substitution**: Working from Aₙ down to A₁, expand any leading non-terminal until every rule starts with a terminal.
 

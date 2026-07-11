@@ -28,7 +28,7 @@ public extension Grammar {
     ///
     /// A grammar is in GNF if every production has the form  A → a α,
     /// where `a` is a terminal and α is a (possibly empty) sequence of non-terminals.
-    var isInGreilbachForm: Bool {
+    var isInGreibachForm: Bool {
         return productions.allSatisfy { production in
             guard !production.rule.isEmpty else { return false }
             // First symbol must be a terminal

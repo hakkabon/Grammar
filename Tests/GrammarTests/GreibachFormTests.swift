@@ -28,7 +28,7 @@ private func assertGNF(_ grammar: Grammar, file: String = #file, line: Int = #li
     }
 }
 
-// MARK: - isInGreilbachForm property
+// MARK: - isInGreibachForm property
 
 @Test func gnfProperty_alreadyInGNF() async throws {
     // Build a grammar that is already in GNF:
@@ -40,7 +40,7 @@ private func assertGNF(_ grammar: Grammar, file: String = #file, line: Int = #li
         Production(goal: "A", rule: [t("b")]),
         Production(goal: "B", rule: [t("c"), n("A")]),
     ], start: "S", lexicalTokens: [:])
-    #expect(grammar.isInGreilbachForm == true)
+    #expect(grammar.isInGreibachForm == true)
 }
 
 @Test func gnfProperty_notInGNF_startsWithNT() async throws {
@@ -49,7 +49,7 @@ private func assertGNF(_ grammar: Grammar, file: String = #file, line: Int = #li
         Production(goal: "S", rule: [n("A"), t("b")]),
         Production(goal: "A", rule: [t("a")]),
     ], start: "S", lexicalTokens: [:])
-    #expect(grammar.isInGreilbachForm == false)
+    #expect(grammar.isInGreibachForm == false)
 }
 
 @Test func gnfProperty_notInGNF_terminalInTail() async throws {
@@ -57,7 +57,7 @@ private func assertGNF(_ grammar: Grammar, file: String = #file, line: Int = #li
     let grammar = Grammar(productions: [
         Production(goal: "S", rule: [t("a"), t("b")]),
     ], start: "S", lexicalTokens: [:])
-    #expect(grammar.isInGreilbachForm == false)
+    #expect(grammar.isInGreibachForm == false)
 }
 
 // MARK: - Epsilon elimination (shared with CNF)
@@ -172,7 +172,7 @@ private func assertGNF(_ grammar: Grammar, file: String = #file, line: Int = #li
     let grammar = try Grammar(wsn: grammarString, start: "S")
     let gnf = grammar.toGreibachNormalForm()
     assertGNF(gnf)
-    #expect(gnf.isInGreilbachForm)
+    #expect(gnf.isInGreibachForm)
 }
 
 @Test func gnf_alreadyInGNF_isIdempotent() async throws {
@@ -182,9 +182,9 @@ private func assertGNF(_ grammar: Grammar, file: String = #file, line: Int = #li
         Production(goal: "A", rule: [t("b")]),
         Production(goal: "B", rule: [t("c"), n("A")]),
     ], start: "S", lexicalTokens: [:])
-    #expect(grammar.isInGreilbachForm)
+    #expect(grammar.isInGreibachForm)
     let gnf = grammar.toGreibachNormalForm()
-    #expect(gnf.isInGreilbachForm)
+    #expect(gnf.isInGreibachForm)
 }
 
 @Test func gnf_nonEmptyResult() async throws {

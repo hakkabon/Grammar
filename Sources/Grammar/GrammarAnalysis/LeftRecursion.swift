@@ -20,74 +20,69 @@ extension Grammar {
     /// Removes all left recursion (direct and indirect) from the grammar.
     public func eliminateLeftRecursion() -> [Production] {
         
-        let groupedProductions = Dictionary(grouping: Array(self.productions), by: \.goal)
-        // Create an ordered list of non-terminals
-        let nonTerminals = nonTerminals.sorted { $0 < $1 }
-        var newProductions: [Production] = []
+        // Create a mutable copy of productions grouped by their goal.
+        // We will update this in-place during the algorithm.
+        var currentProductions = Dictionary(grouping: Array(self.productions), by: \.goal)
+        
+        // Create an ordered list of the original non-terminals.
+        let originalNonTerminals = nonTerminals.sorted { $0 < $1 }
+        
+        // Track all non-terminals to avoid name collisions.
+        var allNTs = self.nonTerminals
 
-        /// Removes direct left recursion for a single non-terminal.
-        func removeDirectLeftRecursion(for nonTerminal: NonTerminal) -> [Production] {
-            guard let prods = groupedProductions[nonTerminal] else { return [] }
-            var nonTerminals = self.nonTerminals
+        for i in 0..<originalNonTerminals.count {
+            let ai = originalNonTerminals[i]
             
-            // Partition productions into left-recursive and non-left-recursive
-            let alphaProductions = prods.filter { $0.rule.first == Symbol.nonTerminal(nonTerminal) }
-            let betaProductions = prods.filter { $0.rule.first != Symbol.nonTerminal(nonTerminal) }
-            
-            guard !alphaProductions.isEmpty else { return [] }
-            
-            // Create a new non-terminal
-            let newNonTerminalName = generateNonterminal(withPrefix: nonTerminal.name, nonTerminals: nonTerminals)
-            nonTerminals.insert(newNonTerminalName)
-            let newNonTerminal = Symbol.nonTerminal(newNonTerminalName)
-            
-            // Rewrite original productions
-            var newLhsProductions: [Production] = []
-            for betaRule in betaProductions {
-                // New rule: A -> beta A'
-                newLhsProductions.append(Production(goal: nonTerminal, rule: betaRule.rule + [newNonTerminal]))
+            for j in 0..<i {
+                let aj = originalNonTerminals[j]
+                
+                // Get the current rules for Ai.
+                let rulesForAi = currentProductions[ai] ?? []
+                var updatedRulesForAi: [Production] = []
+                
+                for prod in rulesForAi {
+                    if prod.rule.first == .nonTerminal(aj) {
+                        let tail = Array(prod.rule.dropFirst())
+                        let rulesForAj = currentProductions[aj] ?? []
+                        for prodJ in rulesForAj {
+                            updatedRulesForAi.append(Production(goal: ai, rule: prodJ.rule + tail))
+                        }
+                    } else {
+                        updatedRulesForAi.append(prod)
+                    }
+                }
+                currentProductions[ai] = updatedRulesForAi
             }
             
-            // Define productions for the new non-terminal
-            var newRhsProductions: [Production] = []
-            for alphaRule in alphaProductions {
-                // New rule: A' -> alpha A'
-                let alphaPart = Array(alphaRule.rule.dropFirst())
-                newRhsProductions.append(Production(goal: newNonTerminalName, rule: alphaPart + [newNonTerminal]))
-            }
-            // Add epsilon production: A' -> ε, represented as the canonical empty rule `[]`.
-            newRhsProductions.append(Production(goal: newNonTerminalName, rule: []))
+            // Eliminate immediate left recursion for Ai.
+            let rulesForAi = currentProductions[ai] ?? []
+            let alphaRules = rulesForAi.filter { $0.rule.first == .nonTerminal(ai) }
+            let betaRules = rulesForAi.filter { $0.rule.first != .nonTerminal(ai) }
             
-            return newLhsProductions + newRhsProductions
+            if !alphaRules.isEmpty {
+                let prime = generateNonterminal(withPrefix: ai.name, nonTerminals: allNTs)
+                allNTs.insert(prime)
+                
+                // Ai -> beta Ai'
+                var newAiRules: [Production] = []
+                for betaRule in betaRules {
+                    newAiRules.append(Production(goal: ai, rule: betaRule.rule + [.nonTerminal(prime)]))
+                }
+                
+                // Ai' -> alpha Ai' | epsilon
+                var primeRules: [Production] = []
+                for alphaRule in alphaRules {
+                    let alpha = Array(alphaRule.rule.dropFirst())
+                    primeRules.append(Production(goal: prime, rule: alpha + [.nonTerminal(prime)]))
+                }
+                // Add epsilon rule
+                primeRules.append(Production(goal: prime, rule: []))
+                
+                currentProductions[ai] = newAiRules
+                currentProductions[prime] = primeRules
+            }
         }
         
-        for (i, nonTerminal_i) in nonTerminals.enumerated() {
-            for j in 0..<i {
-                let nonTerminal_j = Symbol.nonTerminal(nonTerminals[j])
-
-                // Find and replace productions of the form Ai -> Aj*...
-                var updatedProductionsFor_i: [Production] = []
-                if let rules_i = groupedProductions[nonTerminal_i] {
-                    for rule_i in rules_i {
-                        if rule_i.rule.first == nonTerminal_j {
-                            // Substitute Aj productions into Ai
-                            if let rules_j = groupedProductions[nonTerminals[j]] {
-                                for rule_j in rules_j {
-                                    let newRhs = rule_j.rule + rule_i.rule.dropFirst()
-                                    updatedProductionsFor_i.append(Production(goal: nonTerminal_i, rule: newRhs))
-                                }
-                            }
-                        } else {
-                            // Keep non-Aj-starting productions
-                            updatedProductionsFor_i.append(rule_i)
-                        }
-                    }
-                    newProductions += updatedProductionsFor_i
-                }
-            }
-            // After all substitutions, remove any direct left recursion for nonTerminal_i
-            newProductions += removeDirectLeftRecursion(for: nonTerminal_i)
-        }
-        return newProductions
+        return currentProductions.values.flatMap { $0 }
     }
 }

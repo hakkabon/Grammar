@@ -45,65 +45,67 @@ extension Grammar {
         var currentProductions = Set(self.productions)
         var nonTerminals = self.nonTerminals
 
-        func longestCommonPrefix(_ rule: [[Symbol]]) -> Prefix {
-            guard let first = rule.first.map({ $0 }) else { return .empty }
-            let prefix = rule.dropFirst().reduce(first, { $0.commonPrefix(with: $1) })
-            return prefix == [] ? .empty : .prefix(prefix)
-        }
-
-        func suffix(from alpha: [Symbol], in rule: [Symbol]) -> Suffix {
-            let beta = rule.suffix(from: alpha.endIndex)
-            return beta == [] ? .empty : .suffix(Array(beta))
+        func suffix(from alpha: [Symbol], in rule: [Symbol]) -> [Symbol] {
+            return Array(rule.suffix(from: alpha.endIndex))
         }
 
         func allRules(for nonTerminal: NonTerminal) -> [[Symbol]] {
-            let groupedProductions = Dictionary(grouping: Array(currentProductions), by: \.goal)
-            if let prods: [Production] = groupedProductions[nonTerminal] {
-                return prods.map { $0.rule }
-            }
-            return []
-        }
-        
-        func productions(for nonTerminal: NonTerminal) -> [Production]? {
-            let groupedProductions = Dictionary(grouping: Array(currentProductions), by: \.goal)
-            return groupedProductions[nonTerminal]
+            let prods = currentProductions.filter { $0.goal == nonTerminal }
+            return prods.map { $0.rule }
         }
 
-        for nonTerminal in nonTerminals {
-            while case let .prefix(alpha) = longestCommonPrefix(allRules(for: nonTerminal)), allRules(for: nonTerminal).count > 1 {
-                Logger.grammar.info("non-terminal '\(nonTerminal)' longest common prefix: \(alpha)")
-                let V = generateNonterminal(withPrefix: "V", nonTerminals: nonTerminals)
-                nonTerminals.insert(V)
-                // Productions ∪ { A → αV }
-                let p = Production(goal: nonTerminal, rule: alpha + [Symbol.nonTerminal(V)])
-                currentProductions.insert(p)
-                Logger.grammar.info("  add production: \(p)")
-
-                if let prods = productions(for: nonTerminal) {
-                    for prod in prods {
-                        // all rules with prefix but except A → αV
-                        if prod.rule.hasPrefix(alpha) && !prod.rule.contains(.nonTerminal(V)) {
-                            // productions − { p }
-                            currentProductions.remove(prod)
-                            Logger.grammar.info("  remove production: \(prod)")
-                            
-                            // productions ∪ { V → βp }
-                            let p2: Production
-                            switch suffix(from: alpha, in: prod.rule) {
-                            case .suffix(let beta):
-                                p2 = Production(goal: V, rule: beta)
-                            case .empty:
-                                // The epsilon alternative is the canonical empty rule `[]`.
-                                p2 = Production(goal: V, rule: [])
-                            }
-
-                            currentProductions.insert(p2)
-                            Logger.grammar.info("  add production from suffix of truncated production: \(p2)")
-                        }
+        func findCommonPrefix(in rules: [[Symbol]]) -> [Symbol]? {
+            let nontermGroup = Dictionary(grouping: rules.filter { !$0.isEmpty }) { $0[0] }
+            
+            var bestPrefix: [Symbol]? = nil
+            for (_, groupRules) in nontermGroup where groupRules.count > 1 {
+                let firstRule = groupRules[0]
+                let common = groupRules.dropFirst().reduce(firstRule) { $0.commonPrefix(with: $1) }
+                if !common.isEmpty {
+                    if bestPrefix == nil || common.count > bestPrefix!.count {
+                        bestPrefix = common
                     }
                 }
             }
+            return bestPrefix
         }
+
+        var changed = true
+        while changed {
+            changed = false
+            
+            // We need to iterate over a snapshot of nonTerminals since we might add new ones.
+            let ntSnapshot = Array(nonTerminals).sorted { $0.name < $1.name }
+            for nonTerminal in ntSnapshot {
+                let rules = allRules(for: nonTerminal)
+                if let alpha = findCommonPrefix(in: rules) {
+                    let V = generateNonterminal(withPrefix: "V", nonTerminals: nonTerminals)
+                    nonTerminals.insert(V)
+                    
+                    Logger.grammar.info("non-terminal '\(nonTerminal)' longest common prefix: \(alpha)")
+                    
+                    // Filter productions of `nonTerminal` that start with alpha
+                    let prodsToFactor = currentProductions.filter { $0.goal == nonTerminal && $0.rule.hasPrefix(alpha) }
+                    
+                    // Remove the factored productions
+                    for prod in prodsToFactor {
+                        currentProductions.remove(prod)
+                        
+                        let sfx = suffix(from: alpha, in: prod.rule)
+                        let newProd = Production(goal: V, rule: sfx)
+                        currentProductions.insert(newProd)
+                    }
+                    
+                    // Add the new factored production A -> alpha V
+                    let parentProd = Production(goal: nonTerminal, rule: alpha + [Symbol.nonTerminal(V)])
+                    currentProductions.insert(parentProd)
+                    
+                    changed = true
+                    break // Break the inner loop to restart with updated productions and non-terminals
+                }
+            }
+        }
+        
         return Array(currentProductions)
     }
 }

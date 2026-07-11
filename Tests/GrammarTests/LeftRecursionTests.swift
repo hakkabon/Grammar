@@ -1,6 +1,13 @@
 import Testing
 @testable import Grammar
 
+// Helper to verify that no direct left-recursion exists in the resulting productions
+private func assertNoLeftRecursion(_ productions: [Production]) {
+    for prod in productions {
+        #expect(prod.rule.first != .nonTerminal(prod.goal), "Direct left-recursion found: \(prod)")
+    }
+}
+
 // Crafting a Compiler, 5.5. Obtaining LL(1) Grammars
 @Test func eliminateLeftRecursionIfElse() async throws {
     let grammarString = """
@@ -17,8 +24,13 @@ import Testing
     let (productions, _) = grammar.rewriteToStandardForm()
     let standardGrammar = Grammar(productions: productions, start: grammar.start, lexicalTokens: [:])
     let leftFactoredProductions = standardGrammar.eliminateLeftRecursion()
-    print("productions: \n \(productions)")
-    print("Eliminated left recursion: \n \(leftFactoredProductions)")
+    
+    assertNoLeftRecursion(leftFactoredProductions)
+    
+    let goals = Set(leftFactoredProductions.map { $0.goal })
+    #expect(goals.contains("Stmt"))
+    #expect(goals.contains("StmtList"))
+    #expect(goals.contains(where: { $0.name.hasPrefix("StmtList-") }), "Should generate new non-terminal for StmtList")
 }
 
 // Dragon book, Example 4.20, Grammar (4.18)
@@ -31,8 +43,8 @@ import Testing
     let (productions, _) = grammar.rewriteToStandardForm()
     let standardGrammar = Grammar(productions: productions, start: grammar.start, lexicalTokens: [:])
     let leftFactoredProductions = standardGrammar.eliminateLeftRecursion()
-    print("productions: \n \(productions)")
-    print("Eliminated left recursion: \n \(leftFactoredProductions)")
+    
+    assertNoLeftRecursion(leftFactoredProductions)
 }
 
 // Grune, 6.3.2 A Counterexample: Left Recursion
@@ -48,8 +60,8 @@ import Testing
     let (productions, _) = grammar.rewriteToStandardForm()
     let standardGrammar = Grammar(productions: productions, start: grammar.start, lexicalTokens: [:])
     let leftFactoredProductions = standardGrammar.eliminateLeftRecursion()
-    print("productions: \n \(productions)")
-    print("Eliminated left recursion: \n \(leftFactoredProductions)")
+    
+    assertNoLeftRecursion(leftFactoredProductions)
 }
 
 @Test func eliminateLeftRecursionSimple() async throws {
@@ -61,15 +73,13 @@ import Testing
     let (productions, _) = grammar.rewriteToStandardForm()
     let standardGrammar = Grammar(productions: productions, start: grammar.start, lexicalTokens: [:])
     let leftFactoredProductions = standardGrammar.eliminateLeftRecursion()
-    print("productions: \n \(productions)")
-    print("Eliminated left recursion: \n \(leftFactoredProductions)")
-    // expected result of left recursion elimination:
-    // A -> B "a"
-    // A -> "c"
-    // B -> "c" "a" B
-    // B -> "d" B
-    // B -> "a" "b" B
-    // B -> ε
+    
+    assertNoLeftRecursion(leftFactoredProductions)
+    
+    let goals = Set(leftFactoredProductions.map { $0.goal })
+    #expect(goals.contains("A"))
+    #expect(goals.contains("B"))
+    #expect(goals.contains(where: { $0.name.hasPrefix("B-") }), "Should generate a new non-terminal for B")
 }
 
 // Elaine Rich example p.241
@@ -86,15 +96,7 @@ import Testing
     let (productions, _) = grammar.rewriteToStandardForm()
     let standardGrammar = Grammar(productions: productions, start: grammar.start, lexicalTokens: [:])
     let leftFactoredProductions = standardGrammar.eliminateLeftRecursion()
-    print("productions: \n \(productions)")
-    print("Eliminated left recursion: \n \(leftFactoredProductions)")
-    // expected result of left recursion elimination:
-    // E → T E'
-    // E' → + T E'
-    // E' → ε
-    // T → F T'
-    // T' → * F T'
-    // T' → ε
-    // F → ( E )
-    // F → id
+    
+    assertNoLeftRecursion(leftFactoredProductions)
+    #expect(leftFactoredProductions.count == 8, "Expression grammar after left recursion elimination should have 8 productions")
 }

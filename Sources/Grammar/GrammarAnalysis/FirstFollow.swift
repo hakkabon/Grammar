@@ -39,7 +39,7 @@ extension Grammar {
                 if predict.contains(eps) {
                     predict.formUnion(follow[A]!)
                 }
-                if set.intersection(predict).isEmpty { return false }
+                if !set.intersection(predict).isEmpty { return false }
                 set.formUnion(predict)
             }
         }

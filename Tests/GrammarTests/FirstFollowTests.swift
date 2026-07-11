@@ -415,3 +415,27 @@ let eof: Symbol = Symbol.terminal(.meta(.eof))
     #expect(aFollow.contains(t("a")), "FOLLOW(A) should contain 'a' from subsequent A")
     #expect(aFollow.contains(eof), "FOLLOW(A) should contain $ from end position")
 }
+
+// MARK: - LL(1) Classification Tests
+
+@Test func isLL1_validLL1Grammar() async throws {
+    let grammarString = """
+        E  : T Ex
+        Ex : '+' T Ex | ε
+        T  : F Tx
+        Tx : '*' F Tx | ε
+        F  : '(' E ')' | 'id'
+    """
+    let grammar = try Grammar(wsn: grammarString, start: "E")
+    let (first, follow) = grammar.firstAndFollow()
+    #expect(grammar.isLL1(first: first, follow: follow) == true, "Arithmetic expression grammar should be LL(1)")
+}
+
+@Test func isLL1_invalidLL1Grammar() async throws {
+    let grammarString = """
+        S : 'a' | 'a' 'b'
+    """
+    let grammar = try Grammar(wsn: grammarString, start: "S")
+    let (first, follow) = grammar.firstAndFollow()
+    #expect(grammar.isLL1(first: first, follow: follow) == false, "Grammar S -> 'a' | 'a' 'b' has common prefix and is not LL(1)")
+}
