@@ -1,10 +1,7 @@
 # Using the Grammar Module for Parsing
 
 This is a reference for every currently-viable way to go from "I have a grammar,
-somehow" to "I have a `Grammar` value ready to hand to a parser." It reflects
-the module as of this session's two patches (`lexical-tokens-as-terminals.patch`
-and `grammarbuilder-dsl-fix.patch`); a couple of the scenarios below silently
-produced garbage before those were applied, and that's noted inline.
+somehow" to "I have a `Grammar` value ready to hand to a parser." 
 
 ## 1. What this module does — and doesn't do
 
@@ -12,9 +9,9 @@ produced garbage before those were applied, and that's noted inline.
 in this repository turns an input *string* into a parse tree. The pipeline is:
 
 ```
-                    ┌─────────────────────────────────────────────────┐
+                    ┌──────────────────────────────────────────────────┐
  text / Swift DSL → │ AST → flatten to [Production] → Grammar → (norm) │ → sibling parser package
-                    └─────────────────────────────────────────────────┘
+                    └──────────────────────────────────────────────────┘
                               (this repo)                                (Earley-Parser, LL-Parsing,
                                                                             LR-Parsing, CYK-Parser,
                                                                             RNGLR-Parser, GLR, ...)
@@ -28,12 +25,12 @@ Every scenario in §3 ends at the same place: a `Grammar` value with a flat
 
 Every scenario below bottoms out in the same four types:
 
-| Type | Shape | Notes |
-|---|---|---|
-| `Grammar` | `productions: [Production]`, `start: NonTerminal`, `epsilon`/`endofile: MetaTerminal`, `lexicalTokens: [String: Terminal]`, `generatedNonTerminals`, `nullableNonTerminals` | Also exposes computed `nonTerminals`, `terminals`, `startProduction`, and `bnf`/`ebnf`/`wsn` string views for round-tripping/debugging. |
-| `Production` | `goal: NonTerminal`, `rule: [Symbol]` | Epsilon is **always** `rule == []`, never an explicit epsilon symbol — every initializer normalizes this away. `rule.isEmpty` is the one reliable nullability test used everywhere else in the package. |
-| `Symbol` | `.terminal(Terminal)` \| `.nonTerminal(NonTerminal)` \| `.metaSymbol(MetaSymbol)` | What actually appears on the right-hand side of a production. |
-| `Terminal` | `.string` \| `.characterRange` \| `.stringList` \| `.regularExpression` \| `.meta(MetaTerminal)` | A compiled match rule — not just a pattern string. |
+| Type         | Shape                                                                                                                                                                       | Notes                                                                                                                                                                                                   |
+| ------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `Grammar`    | `productions: [Production]`, `start: NonTerminal`, `epsilon`/`endofile: MetaTerminal`, `lexicalTokens: [String: Terminal]`, `generatedNonTerminals`, `nullableNonTerminals` | Also exposes computed `nonTerminals`, `terminals`, `startProduction`, and `bnf`/`ebnf`/`wsn` string views for round-tripping/debugging.                                                                 |
+| `Production` | `goal: NonTerminal`, `rule: [Symbol]`                                                                                                                                       | Epsilon is **always** `rule == []`, never an explicit epsilon symbol — every initializer normalizes this away. `rule.isEmpty` is the one reliable nullability test used everywhere else in the package. |
+| `Symbol`     | `.terminal(Terminal)` \| `.nonTerminal(NonTerminal)` \| `.metaSymbol(MetaSymbol)`                                                                                           | What actually appears on the right-hand side of a production.                                                                                                                                           |
+| `Terminal`   | `.string` \| `.characterRange` \| `.stringList` \| `.regularExpression` \| `.meta(MetaTerminal)`                                                                            | A compiled match rule — not just a pattern string.                                                                                                                                                      |
 
 Two convenience layers exist for building these by hand: `NonTerminal` is
 `ExpressibleByStringLiteral` (so `"A"` works anywhere a `NonTerminal` is
@@ -55,6 +52,7 @@ let grammar = try Grammar(
     start: "expr"
 )
 ```
+
 Routes through `GrammarParser` → `BnfExpression` → `StandardNotation`. Angle
 brackets around non-terminals, `::=`, `|` alternation. This is the most
 literal/traditional notation and the one most compiler textbooks use.
@@ -71,6 +69,7 @@ let grammar = try Grammar(
     start: "expr"
 )
 ```
+
 Adds `[ ]` optional, `{ }` repetition, `( )` grouping, and `,` for explicit
 concatenation on top of BNF's alternatives. Prefer this over raw BNF whenever
 the grammar has any repetition or optionality — it saves you from
@@ -88,6 +87,7 @@ let grammar = try Grammar(
     start: "expr"
 )
 ```
+
 Same expressive power as EBNF (`[ ]`, `{ }`, `( )`), lighter punctuation
 (implicit concatenation, no commas, `.` terminates a rule instead of `;`).
 **Before this session's patch this scenario didn't compile** — `init(wsn:start:)`
@@ -104,6 +104,7 @@ term ::= digit
 digit ::= "0" | "1" | "2"
 """)
 ```
+
 A WSN/BNF hybrid that additionally accepts `:`, `=`, `:=`, or `::=` as the
 definition operator, and lets the start symbol be declared *inside* the text
 with a leading `> name` metarule — this is the only text scenario that
@@ -124,6 +125,7 @@ let grammar = Grammar(
     lexicalTokens: [:]
 )
 ```
+
 No parsing of any notation at all — you already have (or generated) fully
 flattened `[Symbol]` rules and just want a `Grammar` wrapper around them
 (nullability computation, `.bnf`/`.ebnf` rendering, etc.). This is what every
@@ -142,17 +144,12 @@ let grammar = Grammar(start: "expr") {
     Rule("term") { Alt { t("0"); t("1"); t("2") } }
 }
 ```
+
 An embedded, type-checked EBNF: `Cat` for concatenation, `Alt` for choice,
 `Seq` for zero-or-more repetition, `Opt` for optionality, `Grp` for grouping.
 Symbols are already fully resolved at the call site — `rt(...)`/`ct(...)`/`lt(...)`
 build a compiled `Terminal` directly, with no separate lexical block needed.
-**Before this session's patch, this initializer silently discarded every rule
-you wrote and returned an empty grammar with an empty start symbol** — the
-bridge from `[Rule]` to `[Production]` was stubbed out with a debug `print`.
-Fixed as part of `grammarbuilder-dsl-fix.patch`; see the companion review
-document for the full writeup. Prefer this over scenario E whenever the
-grammar has any alternation/optionality/repetition — you get the synthetic
-non-terminal bookkeeping for free instead of writing it by hand.
+Prefer this over scenario E whenever the grammar has any alternation / optionality / repetition — you get the synthetic non-terminal bookkeeping for free instead of writing it by hand.
 
 ### G. Raw `[Production]`-array builder
 
@@ -162,6 +159,7 @@ let grammar = Grammar(start: "expr") {
     Production(goal: "term", rule: [t("0")])
 }
 ```
+
 A thin `@resultBuilder` accumulator around scenario E — useful only for
 grouping an already-flat list of `Production` values into a trailing closure;
 it does not offer `Alt`/`Opt`/`Seq`/`Grp` sugar. In almost every case scenario
@@ -195,22 +193,17 @@ compiled terminal directly at its point of use with `rt(_:)`, `ct(_:)`, or
 A freshly-imported `Grammar` is rarely what a specific parsing algorithm
 wants directly. The relevant transformations, all `Grammar` methods:
 
-| Call | Produces | Typically needed for |
-|---|---|---|
-| `grammar.rewriteToStandardForm()` → `([Production], Set<NonTerminal>)` | Flattened EBNF-construct-free BNF | Nearly everything; also triggered by `grammar.grammarForm = .standard` |
-| `Grammar.eliminateEmpty(productions:start:)` (static, `Hygiene.swift`) | Removes ε-productions except possibly at the start symbol | LL/LR table construction |
-| `Grammar.eliminateUnitRules(productions:)` (static) | Removes `A -> B` chain rules | LL/LR |
-| `Grammar.eliminateUnusedProductions(productions:start:)` (static) | Drops unreachable/non-generating rules | Cleanup before any table-based parser |
-| `grammar.eliminateLeftRecursion()` → `[Production]` | Removes direct/indirect left recursion | LL(1) and other top-down parsers |
-| `grammar.leftFactoring()` → `[Production]` | Factors out common alternative prefixes | LL(1) |
-| `grammar.firstAndFollow()` / `grammar.followSets()` / `grammar.isLL1(first:follow:)` | FIRST/FOLLOW sets, LL(1) check | LL table construction, conflict diagnostics |
-| `grammar.toChomskyNormalForm()` → `Grammar` | CNF (all rules `A -> BC` or `A -> a`) | CYK |
-| `grammar.toGreibachNormalForm()` → `Grammar` | GNF (all rules start with a terminal) | Certain top-down/recursive-descent constructions |
-
-**Caveat:** `grammar.grammarForm = .chomsky` / `.greilbach` are currently
-no-ops (`//TODO` in the property's `willSet`) — only `.standard` is actually
-wired up that way. Call `toChomskyNormalForm()` / `toGreibachNormalForm()`
-directly instead of going through the `grammarForm` property for those two.
+| Call                                                                                 | Produces                                                  | Typically needed for                                                   |
+| ------------------------------------------------------------------------------------ | --------------------------------------------------------- | ---------------------------------------------------------------------- |
+| `grammar.rewriteToStandardForm()` → `([Production], Set<NonTerminal>)`               | Flattened EBNF-construct-free BNF                         | Nearly everything; also triggered by `grammar.grammarForm = .standard` |
+| `Grammar.eliminateEmpty(productions:start:)` (static, `Hygiene.swift`)               | Removes ε-productions except possibly at the start symbol | LL/LR table construction                                               |
+| `Grammar.eliminateUnitRules(productions:)` (static)                                  | Removes `A -> B` chain rules                              | LL/LR                                                                  |
+| `Grammar.eliminateUnusedProductions(productions:start:)` (static)                    | Drops unreachable/non-generating rules                    | Cleanup before any table-based parser                                  |
+| `grammar.eliminateLeftRecursion()` → `[Production]`                                  | Removes direct/indirect left recursion                    | LL(1) and other top-down parsers                                       |
+| `grammar.leftFactoring()` → `[Production]`                                           | Factors out common alternative prefixes                   | LL(1)                                                                  |
+| `grammar.firstAndFollow()` / `grammar.followSets()` / `grammar.isLL1(first:follow:)` | FIRST/FOLLOW sets, LL(1) check                            | LL table construction, conflict diagnostics                            |
+| `grammar.toChomskyNormalForm()` → `Grammar`                                          | CNF (all rules `A -> BC` or `A -> a`)                     | CYK                                                                    |
+| `grammar.toGreibachNormalForm()` → `Grammar`                                         | GNF (all rules start with a terminal)                     | Certain top-down/recursive-descent constructions                       |
 
 ## 6. Handing off to an actual parser
 
