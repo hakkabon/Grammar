@@ -2,6 +2,9 @@
 //  RuleNotation.swift
 //  Grammar
 //
+//  Created by Ulf Akerstedt-Inoue on 2023/09/21.
+//  Copyright © 2023 hakkabon software. All rights reserved.
+//
 
 import Foundation
 
@@ -12,15 +15,15 @@ import Foundation
 ///
 /// The two are deliberately structural mirrors of one another:
 ///
-/// | `Rule.Expression`   | `BnfExpression`             | Meaning                       |
-/// |----------------------|------------------------------|-------------------------------|
-/// | `.cat(a, b)`          | `.sequence([...])`          | implicit concatenation        |
-/// | `.alt(a, b)`          | `.alternative([...])`       | choice — generates an aux NT  |
-/// | `.seq(e)`             | `.repetition(e)`            | zero-or-more — aux NT         |
-/// | `.grp(e)`             | `.grouping(e)`              | precedence only, no aux NT    |
-/// | `.opt(e)`             | `.optional(e)`              | zero-or-one — aux NT          |
-/// | `.sym(symbol)`        | `.terminal` / `.nonterminal` | already a resolved `Symbol`  |
-/// | `.eps` / `.empty`     | `.empty`                    | epsilon, stored as `[]`       |
+/// | `Rule.Expression`   | `BnfExpression`              | Meaning                       |
+/// |---------------------|------------------------------|-------------------------------|
+/// | `.cat(a, b)`        | `.sequence([...])`           | implicit concatenation        |
+/// | `.alt(a, b)`        | `.alternative([...])`        | choice — generates an aux NT  |
+/// | `.seq(e)`           | `.repetition(e)`             | zero-or-more — aux NT         |
+/// | `.grp(e)`           | `.grouping(e)`               | precedence only, no aux NT    |
+/// | `.opt(e)`           | `.optional(e)`               | zero-or-one — aux NT          |
+/// | `.sym(symbol)`      | `.terminal` / `.nonterminal` | already a resolved `Symbol`   |
+/// | `.eps` / `.empty`   | `.empty`                     | epsilon, stored as `[]`       |
 ///
 /// Unlike the text pipeline, `.sym(Symbol)` already carries a fully resolved
 /// `Symbol` — including compiled `Terminal`s built inline via `rt(_:)`,

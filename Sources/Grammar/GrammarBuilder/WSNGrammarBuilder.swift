@@ -3,6 +3,7 @@
 //  Grammar
 //
 //  Created by Ulf Akerstedt-Inoue on 2024/04/21.
+//  Copyright © 2024 hakkabon software. All rights reserved.
 //
 
 import Foundation

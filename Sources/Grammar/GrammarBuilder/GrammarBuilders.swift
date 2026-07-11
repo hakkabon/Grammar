@@ -3,10 +3,10 @@
 //  Grammar
 //
 //  Created by Ulf Akerstedt-Inoue on 2023/09/23.
+//  Copyright © 2023 hakkabon software. All rights reserved.
 //
 
 import Foundation
-
 
 @resultBuilder
 public struct GrammarBuilder {
