@@ -42,6 +42,16 @@ values tersely: `t("+")`, `n("expr")`, `rt("[0-9]+")` (regex, throwing),
 `ct("0"..."9")` (character range), `lt("true", "false")` (string list),
 `mt("ε")` (meta-terminal), `ms("(")` (meta-symbol).
 
+`Terminal` has two comparison operations for two different questions. `==` is
+strict structural equality (same case, same payload) — lawful, and what
+`Set<Terminal>`/`[Terminal: _]` (e.g. `Grammar.terminals`) rely on.
+`pattern.matches(token)` is the asymmetric check a parser's `scan()` step
+should use instead: does this terminal, as it appears in a grammar's
+production (`self` — a `.regularExpression`, `.characterRange`, `.stringList`,
+or plain `.string`), accept that already-scanned lexeme (`token` — ordinarily
+a `.string`)? `pattern.matches(token)` and `token.matches(pattern)` can
+disagree by design.
+
 ## 3. Seven ways to obtain a `Grammar`
 
 ### A. BNF text
