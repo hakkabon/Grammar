@@ -17,16 +17,19 @@ Symbol
 
 ### Terminal
 
-A `Terminal` represents an atomic piece of input that the parser matches literally against the input stream. Four variants:
+A `Terminal` represents an atomic piece of input that the parser matches literally against the input stream. Five variants:
 
 | Variant | Example | Notes |
 |---|---|---|
 | `.string(String)` | `"+"`, `"if"` | Exact string match |
 | `.characterRange(ClosedRange<Character>)` | `"a"..."z"` | Single character in range |
+| `.stringList([String])` | `"true"` \| `"false"` | One of a fixed set of literal alternatives — built from a `lexical { }` `list` declaration or the `lt(_:)` DSL helper |
 | `.regularExpression(NSRegularExpression)` | `[0-9]+` | Matched with `NSRegularExpression` |
 | `.meta(MetaTerminal)` | `ε`, `$` | Boundary markers (see below) |
 
-Terminal equality is semantically interesting: a `.regularExpression` compared against a `.string` performs actual regex matching, so `Terminal.regularExpression("[a-z]+") == Terminal.string("abc")` is `true`.
+`Terminal`'s `==` is **strict structural equality**: two terminals are equal only when they're the same case with the same payload (same string, same range, same regex pattern, same list contents) — a lawful equivalence relation, safe to rely on for `Set<Terminal>`/`[Terminal: _]` (e.g. `Grammar.terminals`).
+
+Matching a grammar's terminal against an already-scanned token is a *different*, intentionally asymmetric operation, and has its own method: `pattern.matches(token)`. `self` is the terminal as it appears in a production (e.g. a `.regularExpression`), `token` is the concrete lexeme a lexer produced (ordinarily a `.string`) — so `Terminal.regularExpression("[a-z]+").matches(Terminal.string("abc"))` is `true`, but the reverse (`Terminal.string("abc").matches(Terminal.regularExpression("[a-z]+"))`) is `false`. This is what a parser's `scan()` step should call. (`==` used to do this cross-case matching directly, which broke transitivity — see `matches(_:)`'s doc comment in `Terminal.swift` for the counterexample.)
 
 Convenience: `Terminal` conforms to `ExpressibleByStringLiteral`, so `let t: Terminal = "+"` works.
 
@@ -472,7 +475,7 @@ Reference-type random-access collection wrapping an `Array<T>`. Adds functional 
 
 ### String+Extensions
 
-Extensive regex API: `matches(_:)` (whole-string match), `matches(for:)`, `hasRegularPrefix`, `rangeOfRegularPrefix`, `hasRegularSuffix`, `rangeOfRegularSuffix`. These wrap `NSRegularExpression` and are used internally by `Terminal.==` and the parser.
+Extensive regex API: `matches(_:)` (whole-string match), `matches(for:)`, `hasRegularPrefix`, `rangeOfRegularPrefix`, `hasRegularSuffix`, `rangeOfRegularSuffix`. These wrap `NSRegularExpression` and are used internally by `Terminal.matches(_:)` (see §1) and the parser.
 
 Terminal-based prefix matching: `hasPrefix(_:Terminal, from:)` and `rangeOfPrefix(_:from:)` dispatch on the `Terminal` case to perform string, range, or regex prefix checks.
 

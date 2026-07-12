@@ -261,44 +261,29 @@ extension Terminal: Hashable {
 
 extension Terminal: Equatable {
 
-    /// Creates a terminal that is a string. The terminal is matched when the tokenized subsequence
-    /// of a word is equal to this string.
-
+    /// Strict structural equality: two terminals are equal only when they are
+    /// the same case with the same payload (same literal string, same range,
+    /// same regex pattern, same list contents). This is a lawful equivalence
+    /// relation — reflexive, symmetric, and transitive — which `Set<Terminal>`
+    /// and `[Terminal: _]` (both used elsewhere in this package, e.g.
+    /// `Grammar.terminals`) depend on for correctness.
+    ///
+    /// This intentionally does *not* check whether one terminal's pattern
+    /// matches another's payload (e.g. whether a `.regularExpression` accepts
+    /// a given `.string`) — that used to live here, but mixing "are these
+    /// interchangeable" with "does this pattern accept that token" made `==`
+    /// non-transitive (see `matches(_:)` below for the do-this-instead API,
+    /// and its doc comment for a concrete counterexample of the old bug).
     public static func == (lhs: Terminal, rhs: Terminal) -> Bool {
         switch (lhs, rhs) {
         case (.string(string: let ls), .string(string: let rs)):
             return ls == rs
-            
+
         case (.characterRange(range: let lr), .characterRange(range: let rr)):
             return lr == rr
 
-        // A range-typed terminal (e.g. a lexical `'a' .. 'z'` definition) matches a
-        // tokenized subsequence when that subsequence is a single character falling
-        // inside the range. This mirrors the existing regex <-> string cross-matching
-        // below and is what lets lexical `range` definitions be used as ordinary
-        // terminals once they are substituted into productions.
-        case (.characterRange(range: let range), .string(string: let string)):
-            return string.count == 1 && range.contains(string[string.startIndex])
-
-        case (.string(string: let string), .characterRange(range: let range)):
-            return string.count == 1 && range.contains(string[string.startIndex])
-
-        case (.regularExpression(expression: let regex), .string(string: let string)):
-            return string.matches(regex.pattern)
-
-        case (.string(string: let string), .regularExpression(expression: let regex)):
-            return string.matches(regex.pattern)
-
         case (.regularExpression(expression: let le), .regularExpression(expression: let re)):
             return le.pattern == re.pattern
-
-        // A list-typed terminal (e.g. a lexical `"a" | "b" | "c"` definition) matches a
-        // tokenized subsequence when it is equal to one of the alternatives in the list.
-        case (.stringList(list: let list), .string(string: let string)):
-            return list.contains(string)
-
-        case (.string(string: let string), .stringList(list: let list)):
-            return list.contains(string)
 
         case (.stringList(list: let ll), .stringList(list: let rl)):
             return ll == rl
@@ -308,6 +293,60 @@ extension Terminal: Equatable {
 
         default:
             return false
+        }
+    }
+}
+
+extension Terminal {
+
+    /// Returns whether `token` satisfies this terminal's pattern. This is
+    /// what a parser's `scan()` (or any other point where a grammar's
+    /// expected terminal meets an already-lexed token) should call instead
+    /// of `==`.
+    ///
+    /// Unlike `==`, this is intentionally **not** symmetric: `self` is the
+    /// pattern (as it appears in a grammar's production — a `.regularExpression`,
+    /// `.characterRange`, `.stringList`, or plain `.string`), and `token` is
+    /// the concrete, already-scanned lexeme a lexer produced (ordinarily a
+    /// `.string`). `self.matches(token)` and `token.matches(self)` can
+    /// disagree, on purpose — a `.regularExpression` can accept a `.string`,
+    /// but a `.string` doesn't itself define a pattern to check `self`
+    /// against. This asymmetry is exactly why the logic no longer lives in
+    /// `==`: `==` must be transitive for `Set<Terminal>`/`[Terminal: _]` to
+    /// behave correctly, and this relation isn't. For example, with the old
+    /// `==`-based version:
+    /// ```
+    /// let a = Terminal(range: "0" ... "9")
+    /// let b = Terminal(string: "5")
+    /// let c = try! Terminal(expression: "[0-9]")
+    /// a == b   // true  (single digit "5" falls in 0...9)
+    /// b == c   // true  ("5" matches [0-9])
+    /// a == c   // false (.characterRange vs .regularExpression: no such case existed)
+    /// ```
+    /// `a == b` and `b == c` but `a != c` — not a lawful equivalence relation.
+    /// `matches(_:)` makes no such promise, so this is no longer a problem.
+    ///
+    /// Two same-case terminals (e.g. comparing one grammar's regex terminal
+    /// against another, rather than against a concrete token) fall back to `==`.
+    public func matches(_ token: Terminal) -> Bool {
+        switch (self, token) {
+        case (.string(let pattern), .string(let lexeme)):
+            return pattern == lexeme
+
+        case (.characterRange(let range), .string(let lexeme)):
+            return lexeme.count == 1 && range.contains(lexeme[lexeme.startIndex])
+
+        case (.regularExpression(let regex), .string(let lexeme)):
+            return lexeme.matches(regex.pattern)
+
+        case (.stringList(let list), .string(let lexeme)):
+            return list.contains(lexeme)
+
+        case (.meta(let pattern), .meta(let lexeme)):
+            return pattern == lexeme
+
+        default:
+            return self == token
         }
     }
 }
