@@ -14,9 +14,6 @@ public enum Terminal {
 
     /// Plain string.
     case string(string: String)
-    
-    /// Single unicode character, for example "\u{1F600}" or "😀".
-//    case scalar(scalar: Unicode.Scalar)
 
     /// List of literal string alternatives, for example the lexical definition
     /// `EMOTICONS ::= "\u{1F600}" | "\u{1F602}"`. The terminal is matched when the
@@ -47,10 +44,6 @@ extension Terminal {
     public init(string: String) {
         self = .string(string: string)
     }
-
-//    public init(unicodeScalarLiteral value: Unicode.Scalar) {
-//        self = .scalar(scalar: value)
-//    }
 
     /// Creates a terminal that is a list of literal string alternatives. The terminal is matched
     /// when the tokenized subsequence is equal to one of the strings in this list.
@@ -114,9 +107,6 @@ extension Terminal {
         case .string(let string):
             return string.isEmpty
             
-//        case .scalar(let scalar):
-//            return String(UnicodeScalar(scalar)).isEmpty
-
         case .stringList(let list):
             return list.allSatisfy { $0.isEmpty }
 
@@ -143,7 +133,6 @@ extension Terminal: Codable {
     
     private enum TerminalCoding: String, Codable {
         case string
-//        case scalar
         case stringList
         case characterRange
         case regularExpression
@@ -157,10 +146,6 @@ extension Terminal: Codable {
             let string = try container.decode(String.self, forKey: .value)
             self = .string(string: string)
             
-//        case .scalar:
-//            let scalar = try container.decode(Unicode.Scalar.self, forKey: .value)
-//            self = .scalar(scalar: scalar)
-
         case .stringList:
             let list = try container.decode([String].self, forKey: .value)
             self = .stringList(list: list)
@@ -194,10 +179,6 @@ extension Terminal: Codable {
             try container.encode(TerminalCoding.string, forKey: .type)
             try container.encode(string, forKey: .value)
 
-//        case .scalar(let scalar):
-//            try container.encode(TerminalCoding.scalar, forKey: .type)
-//            try container.encode(scalar, forKey: .value)
-
         case .stringList(let list):
             try container.encode(TerminalCoding.stringList, forKey: .type)
             try container.encode(list, forKey: CodingKeys.value)
@@ -224,9 +205,6 @@ extension Terminal: Hashable {
         case .string(let string):
             hasher.combine(string.hashValue)
 
-//        case .scalar(let scalar):
-//            hasher.combine(scalar.hashValue)
-
         case .stringList(let list):
             hasher.combine(list)
 
@@ -241,23 +219,6 @@ extension Terminal: Hashable {
         }
     }
 }
-
-/// This is the most interesting part of the `Terminal` implementation, because here is where the
-/// magic happens, or more specific, the terminal is matched against the tokenized stream of input
-/// that is created from the input supplied by the user.
-///
-/// The tokenizer or Finite State Machine examines a string segment from the input stream, builds
-/// according to its understanding of lexical elements, a character class containing a certain
-/// amount of the input string segment. That lexical element (character class) selects the most
-/// approriate definition found in the `Terminal`, and performs a matching of the literal found
-/// in the input with the definition found in `Terminal`.
-///
-/// Token type (class)       Terminal enum type
-/// .symbol
-/// .literal
-/// .number
-/// .keyword
-/// .regex
 
 extension Terminal: Equatable {
 
@@ -363,9 +324,6 @@ extension Terminal: CustomStringConvertible {
         case .string(let string):
             let escapedValue = string.doubleQuoteLiteralEscaped
             return "\"\(escapedValue)\""
-
-//        case .scalar(let scalar):
-//            return "\"\(scalar)\""
 
         case .stringList(let list):
             return list.map { "\"\($0)\"" }.joined(separator: " | ")
