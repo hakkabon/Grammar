@@ -14,7 +14,7 @@ let package = Package(
         .package(url: "https://github.com/apple/swift-algorithms", from: "1.2.1"),
         .package(url: "https://github.com/hakkabon/GrammarTokenizer.git", branch: "main"),
         .package(url: "https://github.com/hakkabon/GrammarDiagram.git", branch: "main"),
-        .package(url: "https://github.com/hakkabon/TerminalColors.git", from: "0.0.1"),
+        .package(url: "https://github.com/hakkabon/TerminalColors.git", branch: "main"),
     ],
     targets: [
         .target(name: "Grammar", dependencies: [

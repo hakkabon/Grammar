@@ -7,6 +7,7 @@
 //
 
 import Foundation
+import TerminalColors
 
 /// A tree which stores values in its leafs.
 ///
@@ -90,38 +91,83 @@ extension DerivationNode: CustomStringConvertible {
     }
 }
 
+// MARK: - Color scheme for tree output
+extension DerivationNode {
+
+    /// Color applied to non-terminal node labels (bold cyan).
+    static let nodeColor    = TerminalColor(fg: .cyan1,    .bold)
+
+    /// Color applied to terminal (leaf) values (green).
+    static let leafColor    = TerminalColor(fg: .chartreuse2)
+
+    /// Color applied to the box-drawing connector characters (dark gray).
+    static let branchColor  = TerminalColor(fg: .gray46)
+}
+
 // MARK: - Tree outline for pretty printing
 extension DerivationNode {
-    
+
+    /// Returns a multi-line, color-coded ASCII tree of the full derivation.
+    ///
+    /// The rendering uses three distinct colors:
+    /// - **Bold cyan** for non-terminal node labels.
+    /// - **Green** for terminal (leaf) values.
+    /// - **Dark gray** for the box-drawing branch characters (`┣╸`, `┗╸`, `┃`).
+    ///
+    /// Color is suppressed automatically when stdout is not a TTY or the
+    /// `NO_COLOR` environment variable is set (delegated to `ANSIStyle.isColorEnabled`).
     public var treeStructure: String {
-        return treeLines().joined(separator:"\n")
+        return treeLines().joined(separator: "\n")
     }
 
     func treeLines(_ nodeIndent: String = "", _ childIndent: String = "") -> [String] {
         switch self {
         case let .leaf(value):
-            return [ nodeIndent + "\(value)" ]
+            let coloredIndent = nodeIndent.isEmpty ? "" : "\(nodeIndent, color: DerivationNode.branchColor)"
+            return [ coloredIndent + "\(value, color: DerivationNode.leafColor)" ]
         case let .node(symbol, derivations):
-            return [ nodeIndent + "\(symbol)" ] + derivations.enumerated()
-                .map{ ($0 < derivations.count-1, $1) }
-                .flatMap{ $0 ? $1.treeLines("┣╸","┃ ") : $1.treeLines("┗╸","  ") }
-                .map{ childIndent + $0 }
+            let coloredIndent = nodeIndent.isEmpty ? "" : "\(nodeIndent, color: DerivationNode.branchColor)"
+            let header = coloredIndent + "\(symbol, color: DerivationNode.nodeColor)"
+            let children = derivations.enumerated()
+                .map { ($0 < derivations.count - 1, $1) }
+                .flatMap { isMiddle, child -> [String] in
+                    if isMiddle {
+                        return child.treeLines(
+                            "\("┣╸", color: DerivationNode.branchColor)",
+                            "\("┃ ", color: DerivationNode.branchColor)"
+                        )
+                    } else {
+                        return child.treeLines(
+                            "\("┗╸", color: DerivationNode.branchColor)",
+                            "  "
+                        )
+                    }
+                }
+                .map { childIndent + $0 }
+            return [header] + children
         }
     }
-    
+
+    /// Prints the derivation tree by traversing every node with a visitor closure.
+    ///
+    /// Unlike `treeStructure`, this method uses a simple indentation scheme rather
+    /// than box-drawing characters. The visitor receives each node together with its
+    /// current indentation string, making it easy to attach custom formatting.
+    ///
+    /// - Parameter spaces: Number of spaces per indentation level (default: `2`).
     public func printStructure(indentation spaces: Int = 2) {
         let tab = Array(repeating: " ", count: spaces).joined()
-        
-        func traverseStructure(_ node: DerivationNode, indentation space: String = "", visitor: (DerivationNode,String) -> ()) {
+
+        func traverseStructure(_ node: DerivationNode, indentation space: String = "", visitor: (DerivationNode, String) -> Void) {
             visitor(node, space)
-            if case let .node(_,derivations) = node {
+            if case let .node(_, derivations) = node {
                 for derivation in derivations {
                     traverseStructure(derivation, indentation: space + tab, visitor: visitor)
                 }
             }
         }
 
-        traverseStructure(self, indentation: "", visitor: { (node,indent) in
+        traverseStructure(self, indentation: "", visitor: { node, indent in
             print(indent + "\(node)")
         })
     }

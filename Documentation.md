@@ -537,6 +537,31 @@ The `ProductionResult.<+>` operator uses `*` to expand alternation concatenation
 
 `SimpleGrammarFuzzer` picks a random alternative for each non-terminal. A budget parameter limits the total derivation depth to avoid infinite expansion for recursive grammars.
 
+### Colored Tree Output (`treeStructure`)
+
+`DerivationNode.treeStructure` renders the derivation history as a colored ASCII tree using the `TerminalColors` package. Three named color constants are defined as static properties on `DerivationNode` and can be overridden per call site:
+
+| Constant | Default color | Applied to |
+|---|---|---|
+| `nodeColor` | Bold cyan (`cyan1 + .bold`) | Non-terminal node labels |
+| `leafColor` | Green (`chartreuse2`) | Terminal (leaf) values |
+| `branchColor` | Dark gray (`gray46`) | Box-drawing branch characters (`┣╸`, `┗╸`, `┃`) |
+
+Color output is suppressed automatically when stdout is not connected to a TTY (e.g. output is being piped or redirected) or when the `NO_COLOR` environment variable is set. Both conditions are checked by `ANSIStyle.isColorEnabled` inside the `TerminalColors` library — no explicit guard is needed at the call site.
+
+Example output (colors rendered on a capable terminal):
+
+```
+<start>                       ← bold cyan
+┣╸<expr>                      ← bold cyan, connector dark gray
+┃ ┣╸<expr>                    ← bold cyan, connector dark gray
+┃ ┃ ┗╸1                       ← green leaf, connector dark gray
+┃ ┣╸+                         ← green leaf
+┃ ┗╸<term>                    ← bold cyan
+┃   ┗╸2                       ← green leaf
+┗╸;                           ← green leaf
+```
+
 ---
 
 ## 13. Logging
