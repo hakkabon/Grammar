@@ -29,7 +29,7 @@ let package = Package(
         ]),
         // Move executable target to its destination (grammar toolbox) when library confirmed working.
         .executableTarget(
-            name: "bnf", dependencies: [
+            name: "gtool", dependencies: [
                 "Grammar",
                 .product(name: "Tokenizer", package: "GrammarTokenizer"),
                 .product(name: "GrammarDiagram", package: "GrammarDiagram"),

@@ -10,15 +10,15 @@ import Foundation
 import ArgumentParser
 import Grammar
 
-extension BnfParse {
+extension GrammarTool {
     
     /// Traditional hand-coded parser for BNF.
     /// The BNF notation used may vary according to the given file extension { bnf | ebnf | gen | wsn }.
     ///
-    /// $ bnf [parse] <grammar.bnf> [--display syntax,pretty,railroad] [--mix]
-    /// $ bnf [parse] <grammar.ebnf> [--display syntax,pretty,railroad] [--mix]
-    /// $ bnf [parse] <grammar.gen> [--display syntax,pretty,railroad] [--mix]
-    /// $ bnf [parse] <grammar.wsn> [--display syntax,pretty,railroad] [--mix]
+    /// $ gtool [bnf] <grammar.bnf> --start <S> [--display syntax,pretty,railroad] [--mix]
+    /// $ gtool [bnf] <grammar.ebnf> --start <S> [--display syntax,pretty,railroad] [--mix]
+    /// $ gtool [bnf] <grammar.gen> [--display syntax,pretty,railroad] [--mix]
+    /// $ gtool [bnf] <grammar.wsn> --start <S> [--display syntax,pretty,railroad] [--mix]
     struct Parse: ParsableCommand {
 
         static var configuration = CommandConfiguration(abstract: "Parses BNF grammars using traditional hand-coded parser.")

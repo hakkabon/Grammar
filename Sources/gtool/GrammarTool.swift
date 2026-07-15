@@ -10,17 +10,27 @@ import Foundation
 import ArgumentParser
 
 @main
-struct BnfParse: ParsableCommand {
+struct GrammarTool: ParsableCommand {
     
-    static var configuration = CommandConfiguration(commandName: "bnf",
-        abstract: "A utility for parsing BNF grammars.", version: "0.0.1",
-        subcommands: [Parse.self], defaultSubcommand: Parse.self)
+    static var configuration = CommandConfiguration(
+        commandName: "gtool",
+        abstract: "A driver utility for Grammar. Parsing BNF grammars and fuzzing grammars.",
+        version: "0.0.1",
+        subcommands: [
+            Parse.self,
+            Fuzz.self
+        ],
+        defaultSubcommand: Parse.self
+    )
 
     struct Options: ParsableArguments {
 
         @Argument(help: "Grammar file name.", transform: URL.init(fileURLWithPath:))
         var grammar: URL
         
+        @Option(name: [.short, .long], help: "Start rule of grammmar, except for '.gen' grammars which contain a start declaration.")
+        var start: String = ""
+
         @Option(name: [.short, .long], help: "Choose how to display your grammar - syntax,pretty,railroad.")
         var display: DisplayOptions = [.pretty]
 
@@ -32,9 +42,19 @@ struct BnfParse: ParsableCommand {
 //        var sort: SortOption = .ascend
 
         mutating func validate() throws {
-            // Verify that the grammar file actually exists.
+            // Verify the grammar file actually exists.
             guard FileManager.default.fileExists(atPath: grammar.path) else {
                 throw ValidationError("Grammar file does not exist at \(grammar.path)")
+            }
+            
+            // Verify that the grammar has a start rule specified when necessary.
+            switch Notation(argument: grammar.pathExtension) {
+            case .gen: // start rule is provided inside the grammar file.
+                break
+            default: // either one of { bnf | ebnf | wsn }
+                if start.isEmpty {
+                    throw ValidationError("Start rule '\(start)' must be non-empty")
+                }
             }
         }
     }

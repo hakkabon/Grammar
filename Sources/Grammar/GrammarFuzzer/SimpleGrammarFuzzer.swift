@@ -10,7 +10,7 @@ import Foundation
 
 struct SimpleGrammarFuzzer {
  
-    typealias Derivation = DerivationNode<NonTerminal, Terminal>
+    typealias Derivation = DerivationTree<NonTerminal, Terminal>
     
     let grammar: Grammar
     let goalProductions: [NonTerminal:[Production]]

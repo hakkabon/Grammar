@@ -26,7 +26,7 @@ public struct GrammarFuzzer {
         }
     }
 
-    typealias Derivation = DerivationNode<NonTerminal, Terminal>
+    public typealias Derivation = DerivationTree<NonTerminal, Terminal>
     
     let grammar: Grammar
     let options: Options
@@ -134,7 +134,7 @@ extension GrammarFuzzer {
         // this function does not do anything yet
         let processedChildren = processChosenChildren(chosenChildren, expansion: expansions[index])
 
-        return DerivationNode(nonTerminal, derivations: processedChildren)
+        return DerivationTree(nonTerminal, derivations: processedChildren)
     }
 
     /// Expands given non-terminal node with one production rule by applying given selection criteria to choose
@@ -168,7 +168,7 @@ extension GrammarFuzzer {
         // this function does not do anything yet
         let processedChosenChildren = processChosenChildren(chosenChildren, expansion: chosenExpansion)
 
-        return DerivationNode(nonTerminal, derivations: processedChosenChildren)
+        return DerivationTree(nonTerminal, derivations: processedChosenChildren)
     }
     
     /// Choose an unexpanded symbol in tree and expand it.
@@ -223,7 +223,7 @@ extension GrammarFuzzer {
     ///   - nonTerminal: any non-terminal symbol in the grammar used as starting point of the grammar expansion.
     ///   - conditions: limits the number of symbols allowed to expand the grammar.
     /// - Returns: Random expansion of the given start non-terminal applied on the given grammar.
-    public func fuzz(start startSymbol: NonTerminal, conditions: ExpandConditions = ExpandConditions()) -> String {
+    public func fuzz(start startSymbol: NonTerminal, conditions: ExpandConditions = ExpandConditions()) -> Derivation {
 
         // We can now put all three phases together in a single function which will work as follows:
         // Max cost expansion - Expand the tree using expansions with maximum cost until we have at least
@@ -245,7 +245,7 @@ extension GrammarFuzzer {
         derivationTree = expandTreeWithStrategy(derivationTree, expandMethod: expandNodeMinCost)
         assert(possibleExpansions(node: derivationTree) == 0)
         
-        return derivationTree.treeStructure
+        return derivationTree
     }
     
     func allNonTerminals(symbols: [Symbol]) -> [NonTerminal] {

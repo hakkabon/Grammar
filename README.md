@@ -161,7 +161,8 @@ Sources/Grammar/
 ├── GrammarFuzzer/                Random string generation from a grammar
 │   ├── GrammarFuzzer.swift       Protocol / base class for fuzzers
 │   ├── SimpleGrammarFuzzer.swift Simple random derivation
-│   └── DerivationNode.swift      Node in a derivation tree
+│   ├── DerivationTree.swift      Derivation tree data structure
+│   └── DerivationTreePrinter.swift Visualizes derivation tree
 │
 ├── ADTs/                         General-purpose data structures
 │   ├── Stack.swift               Value-type LIFO stack
@@ -391,7 +392,7 @@ Every production becomes `A → a α` where `a` is a terminal and `α` is a (pos
 
 ### `GrammarFuzzer/` — Grammar-based fuzzing
 
-`GrammarFuzzer` and `SimpleGrammarFuzzer` generate random strings from a grammar by repeatedly expanding non-terminals. Derivation steps are captured in `DerivationNode` trees, allowing the full derivation history to be inspected.
+`GrammarFuzzer` and `SimpleGrammarFuzzer` generate random strings from a grammar by repeatedly expanding non-terminals. Derivation steps are captured in `DerivationTree` trees, allowing the full derivation history to be inspected.
 
 ### `ADTs/` — Data structures
 

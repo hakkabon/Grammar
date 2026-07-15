@@ -533,19 +533,19 @@ The `ProductionResult.<+>` operator uses `*` to expand alternation concatenation
 
 `GrammarFuzzer` (base) and `SimpleGrammarFuzzer` generate strings that belong to the grammar's language by repeatedly expanding non-terminals.
 
-`DerivationNode` is a tree node representing one step in the derivation. A leaf holds a terminal; an internal node holds a non-terminal and its expanded children. The tree records the full derivation history, allowing test engineers to inspect which productions were applied.
+`DerivationTree` is a tree node representing one step in the derivation. A leaf holds a terminal; an internal node holds a non-terminal and its expanded children. The tree records the full derivation history, allowing test engineers to inspect which productions were applied.
 
 `SimpleGrammarFuzzer` picks a random alternative for each non-terminal. A budget parameter limits the total derivation depth to avoid infinite expansion for recursive grammars.
 
 ### Colored Tree Output (`treeStructure`)
 
-`DerivationNode.treeStructure` renders the derivation history as a colored ASCII tree using the `TerminalColors` package. Three named color constants are defined as static properties on `DerivationNode` and can be overridden per call site:
+`DerivationTree.treeStructure` renders the derivation history as a colored ASCII tree using the `TerminalColors` package. Three named color constants are defined as static properties on `DerivationTree` and can be overridden per call site:
 
 | Constant | Default color | Applied to |
 |---|---|---|
 | `nodeColor` | Bold cyan (`cyan1 + .bold`) | Non-terminal node labels |
-| `leafColor` | Green (`chartreuse2`) | Terminal (leaf) values |
-| `branchColor` | Dark gray (`gray46`) | Box-drawing branch characters (`┣╸`, `┗╸`, `┃`) |
+| `leafColor` | Green (`green`) | Terminal (leaf) values |
+| `branchColor` | Dark gray (`blue`) | Box-drawing branch characters (`┣╸`, `┗╸`, `┃`) |
 
 Color output is suppressed automatically when stdout is not connected to a TTY (e.g. output is being piped or redirected) or when the `NO_COLOR` environment variable is set. Both conditions are checked by `ANSIStyle.isColorEnabled` inside the `TerminalColors` library — no explicit guard is needed at the call site.
 
