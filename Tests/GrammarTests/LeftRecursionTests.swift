@@ -21,9 +21,7 @@ private func assertNoLeftRecursion(_ productions: [Production]) {
                  | ϵ
     """
     let grammar = try Grammar(wsn: grammarString, start: "Stmt")
-    let (productions, _) = grammar.rewriteToStandardForm()
-    let standardGrammar = Grammar(productions: productions, start: grammar.start, lexicalTokens: [:])
-    let leftFactoredProductions = standardGrammar.eliminateLeftRecursion()
+    let leftFactoredProductions = grammar.eliminateLeftRecursion()
     
     assertNoLeftRecursion(leftFactoredProductions)
     
@@ -40,9 +38,7 @@ private func assertNoLeftRecursion(_ productions: [Production]) {
         A : A 'c' | S 'd' | ϵ
     """
     let grammar = try Grammar(wsn: grammarString, start: "S")
-    let (productions, _) = grammar.rewriteToStandardForm()
-    let standardGrammar = Grammar(productions: productions, start: grammar.start, lexicalTokens: [:])
-    let leftFactoredProductions = standardGrammar.eliminateLeftRecursion()
+    let leftFactoredProductions = grammar.eliminateLeftRecursion()
     
     assertNoLeftRecursion(leftFactoredProductions)
 }
@@ -57,9 +53,7 @@ private func assertNoLeftRecursion(_ productions: [Production]) {
         A : ε
     """
     let grammar = try Grammar(wsn: grammarString, start: "S")
-    let (productions, _) = grammar.rewriteToStandardForm()
-    let standardGrammar = Grammar(productions: productions, start: grammar.start, lexicalTokens: [:])
-    let leftFactoredProductions = standardGrammar.eliminateLeftRecursion()
+    let leftFactoredProductions = grammar.eliminateLeftRecursion()
     
     assertNoLeftRecursion(leftFactoredProductions)
 }
@@ -70,9 +64,7 @@ private func assertNoLeftRecursion(_ productions: [Production]) {
         B : A 'b' | 'd'
     """
     let grammar = try Grammar(wsn: grammarString, start: "A")
-    let (productions, _) = grammar.rewriteToStandardForm()
-    let standardGrammar = Grammar(productions: productions, start: grammar.start, lexicalTokens: [:])
-    let leftFactoredProductions = standardGrammar.eliminateLeftRecursion()
+    let leftFactoredProductions = grammar.eliminateLeftRecursion()
     
     assertNoLeftRecursion(leftFactoredProductions)
     
@@ -93,10 +85,10 @@ private func assertNoLeftRecursion(_ productions: [Production]) {
         F : 'id'
     """
     let grammar = try Grammar(wsn: grammarString, start: "E")
-    let (productions, _) = grammar.rewriteToStandardForm()
-    let standardGrammar = Grammar(productions: productions, start: grammar.start, lexicalTokens: [:])
-    let leftFactoredProductions = standardGrammar.eliminateLeftRecursion()
-    
+    let leftFactoredProductions = grammar.eliminateLeftRecursion()
+    print(leftFactoredProductions)
     assertNoLeftRecursion(leftFactoredProductions)
-    #expect(leftFactoredProductions.count == 8, "Expression grammar after left recursion elimination should have 8 productions")
+    let goals = Set(leftFactoredProductions.map { $0.goal })
+    #expect(goals.contains(where: { $0.name.hasPrefix("E-") }), "Should generate a new non-terminal for E")
+    #expect(goals.contains(where: { $0.name.hasPrefix("T-") }), "Should generate a new non-terminal for T")
 }

@@ -259,33 +259,31 @@ import Testing
     #expect(sProds.count == 5)
 }
 
-@Test(.disabled("genNTs → []).isEmpty → true → true) - // A synthetic NT for ['b'] should have been created"))
+@Test("genNTs → []).isEmpty → true → true) - // A synthetic NT for ['b'] should have been created")
 func standardForm_rewrite_optionGeneratesNullable() async throws {
     let grammarString = """
         S : 'a' ['b'] 'c'
     """
     let grammar = try Grammar(wsn: grammarString, start: "S")
-    let (prods, genNTs) = grammar.rewriteToStandardForm()
     
     // A synthetic NT for ['b'] should have been created
-    #expect(!genNTs.isEmpty)
+    #expect(!grammar.generatedNonTerminals.isEmpty)
     // That NT should have an epsilon production
-    let syntheticEpsProds = prods.filter { genNTs.contains($0.goal) && $0.isNullable }
+    let syntheticEpsProds = grammar.productions.filter { grammar.generatedNonTerminals.contains($0.goal) && $0.isNullable }
     #expect(!syntheticEpsProds.isEmpty)
 }
 
-@Test(.disabled("Unexpectedly found nil while unwrapping an Optional value"))
+@Test("Unexpectedly found nil while unwrapping an Optional value")
 func standardForm_rewrite_repetitionGeneratesSelfReference() async throws {
     let grammarString = """
         S : {'a'}
     """
     let grammar = try Grammar(wsn: grammarString, start: "S")
-    let (prods, genNTs) = grammar.rewriteToStandardForm()
     
-    #expect(!genNTs.isEmpty)
+    #expect(!grammar.generatedNonTerminals.isEmpty)
     // The repetition NT should reference itself
-    let repNT = genNTs.first!
-    let selfRef = prods.filter { $0.goal == repNT && $0.generatedNonTerminals.contains(repNT) }
+    let repNT = grammar.generatedNonTerminals.first!
+    let selfRef = grammar.productions.filter { $0.goal == repNT && $0.generatedNonTerminals.contains(repNT) }
     #expect(!selfRef.isEmpty)
 }
 

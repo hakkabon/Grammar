@@ -104,11 +104,11 @@ import Testing
     #expect(Terminal.meta(.eof).isEmpty == false)
 }
 
-@Test func terminal_equatableRegexVsString() {
+@Test func terminal_RegexMatchString() {
     let regexTerminal = try! Terminal(expression: "[a-z]+")
     let stringTerminal = Terminal(string: "abc")
-    // String matching regex should be equal
-    #expect(regexTerminal == stringTerminal)
+    // String matching regex should be true
+    #expect(regexTerminal.matches(stringTerminal))
 }
 
 @Test func terminal_expressibleByStringLiteral() {

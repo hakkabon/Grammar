@@ -15,6 +15,8 @@ import Testing
     #expect(symbolProductions.count == 31)
     #expect(symbolProductions.allSatisfy { $0.rule.count == 1 && $0.rule.first?.isTerminal == true })
 
+    print("symbol productions: \n \(symbolProductions) \n")
+    
     // `letter` is defined via an inline regex terminal (`rt(...)`), not a
     // reference to another rule.
     let letterProduction = grammar.productions.first { $0.goal == NonTerminal(name: "letter") }
