@@ -23,8 +23,10 @@ struct DerivationTreePrinter {
         case .leaf(let value):
             return "\(indentation)\("\(value)", color: leafColor)\n"
             
-        case .node(let value, let children):
-            var result = "\(indentation)\("\(value)", color: nodeColor)\n"
+        case .node(let value, let optionalChildren):
+            var result = "\(indentation)\("\(value)", color: nodeColor)"
+            result += optionalChildren == nil ? " …\n" : "\n"
+            let children = optionalChildren ?? MutableList()
             
             for (index, child) in children.enumerated() {
                 let isLastChild = index == children.count - 1
@@ -44,8 +46,10 @@ struct DerivationTreePrinter {
         case .leaf(let value):
             return "\(currentPrefix)\("\(value)", color: leafColor)\n"
             
-        case .node(let value, let children):
-            var result = "\(currentPrefix)\("\(value)", color: nodeColor)\n"
+        case .node(let value, let optionalChildren):
+            var result = "\(currentPrefix)\("\(value)", color: nodeColor)"
+            result += optionalChildren == nil ? " …\n" : "\n"
+            let children = optionalChildren ?? MutableList()
             
             // Prepare prefix for children
             // If this is the last node, the vertical bar "│" stops here.

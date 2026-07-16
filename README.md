@@ -392,7 +392,7 @@ Every production becomes `A → a α` where `a` is a terminal and `α` is a (pos
 
 ### `GrammarFuzzer/` — Grammar-based fuzzing
 
-`GrammarFuzzer` and `SimpleGrammarFuzzer` generate random strings from a grammar by repeatedly expanding non-terminals. Derivation steps are captured in `DerivationTree` trees, allowing the full derivation history to be inspected.
+`GrammarFuzzer` and `SimpleGrammarFuzzer` generate random strings from a grammar by repeatedly expanding non-terminals. Derivation steps are captured in `DerivationTree` trees, allowing the full derivation history to be inspected. `DerivationTree.node` tracks whether a non-terminal has been expanded yet using an *optional* children list (`nil` = not yet expanded, `.some([])` = expanded via an epsilon production) so that grammars with nullable non-terminals terminate correctly — see [Documentation.md § 12](Documentation.md#12-grammarfuzzer) for details.
 
 ### `ADTs/` — Data structures
 

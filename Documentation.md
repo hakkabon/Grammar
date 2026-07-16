@@ -537,6 +537,26 @@ The `ProductionResult.<+>` operator uses `*` to expand alternation concatenation
 
 `SimpleGrammarFuzzer` picks a random alternative for each non-terminal. A budget parameter limits the total derivation depth to avoid infinite expansion for recursive grammars.
 
+### Epsilon (nullable) non-terminals and `derivations: MutableList<...>?`
+
+A `DerivationTree.node`'s `derivations` is an *optional* list, and the difference between `nil` and `.some([])` is load-bearing, not incidental:
+
+| State | Meaning |
+|---|---|
+| `derivations == nil` | The node exists (typically as a placeholder child produced while expanding its parent) but no production has been chosen for it yet — it still needs expanding. |
+| `derivations == .some([])` | A production has been chosen and applied, and it happened to be an epsilon production (`A ::= ε`). The node is fully resolved and derives nothing further. |
+| `derivations == .some([...])` | A production has been chosen and applied, with one or more children. |
+
+Both of the zero-children states above used to be represented the same way — a plain, non-optional, empty `MutableList` — so a node that had legitimately finished expanding to ε was indistinguishable from one that hadn't been touched yet. `GrammarFuzzer.anyPossibleExpansions`/`possibleExpansions` walk the tree using exactly that "does this node have children yet?" test, so an epsilon-resolved node kept being reported as still expandable. On the next pass the fuzzer would reselect it, reapply its only (empty) production, and produce a result that was structurally identical to what it started with — forever. In practice this hung `fuzz(start:conditions:)`'s third, unlimited closing phase (`expandNodeMinCost`, called with no expansion limit — see `expandTreeWithStrategy`) for **any** grammar reachable through a nullable non-terminal, whether the epsilon production was direct (`A ::= ε`) or only reachable transitively (`A ::= B`, `B ::= ε`).
+
+Making `derivations` optional gives the "not yet expanded" state its own representation (`nil`) distinct from "expanded to nothing" (`.some([])`), so the traversal terminates correctly. The practical implications for anyone extending `GrammarFuzzer`:
+
+- Use `DerivationTree(symbol)` (or the case constructor with `derivations: nil`) for a fresh, unexpanded placeholder — never `DerivationTree(symbol, derivations: [])` for that purpose, since that marks the node as already resolved to ε.
+- Use `DerivationTree(symbol, derivations: someArray)` (empty or not) only once a production has actually been chosen for `symbol`.
+- Any new traversal over `DerivationTree` should switch on `nil` vs. `.some(...)`, not on `.count == 0`, when it needs to know whether a node still requires expansion.
+
+`DerivationTreePrinter`'s trace output marks an unexpanded node with a trailing `…` so the two states remain visually distinguishable while stepping through `options.trace = true` output.
+
 ### Colored Tree Output (`treeStructure`)
 
 `DerivationTree.treeStructure` renders the derivation history as a colored ASCII tree using the `TerminalColors` package. Three named color constants are defined as static properties on `DerivationTree` and can be overridden per call site:

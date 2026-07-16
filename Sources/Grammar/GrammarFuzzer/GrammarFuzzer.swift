@@ -73,7 +73,12 @@ extension GrammarFuzzer {
             case let .terminal(terminal):
                 return Derivation.leaf(terminal)
             case let .nonTerminal(nonTerminal):
-                return Derivation.node(nonTerminal, derivations: [])
+                // `nil`, not `[]`: this is a fresh placeholder awaiting its own
+                // expansion, not a node that has already resolved to ε. See the
+                // discussion in DerivationTree.swift for why the distinction
+                // matters — collapsing both into "empty children" is what made
+                // grammars with epsilon/nullable non-terminals stall the fuzzer.
+                return Derivation.node(nonTerminal, derivations: nil)
             case let .metaSymbol(meta): // any meta-symbols (EBNF) should be absent from the grammar at this point
                 fatalError("resolve any meta symbols \(meta) in the grammar by lowering the grammar to standard form (BNF).")
             }
@@ -81,11 +86,17 @@ extension GrammarFuzzer {
     }
 
     /// Method returns `true` if the tree has any non-expanded nodes.
+    ///
+    /// A node with `derivations == nil` has not been expanded yet and is
+    /// therefore still a possible expansion. A node with `derivations ==
+    /// .some([])` has already been expanded — via an epsilon production —
+    /// and derives nothing further, so it correctly falls through to
+    /// `children.contains(where:)` over an empty collection, i.e. `false`.
     func anyPossibleExpansions(tree: Derivation) -> Bool {
         switch tree {
         case .leaf: return false
-        case let .node(_,children) where children.count == 0: return true
-        case let .node(_,children):
+        case .node(_, nil): return true
+        case let .node(_, .some(children)):
             return children.contains(where: { anyPossibleExpansions(tree: $0) })
         }
     }
@@ -93,8 +104,8 @@ extension GrammarFuzzer {
     func possibleExpansions(node: Derivation) -> Int {
         switch node {
         case .leaf: return 0
-        case let .node(_,children) where children.count == 0: return 1
-        case let .node(_,children):
+        case .node(_, nil): return 1
+        case let .node(_, .some(children)):
             return ( children.map{ possibleExpansions(node: $0) } ).reduce(0,+)
         }
     }
@@ -120,8 +131,8 @@ extension GrammarFuzzer {
     /// Expands given non-terminal node with one production rule randomly chosen out of several possible grammar
     /// alternatives for given non-terminal.
     func expandNodeRandomly(node: Derivation) -> Derivation {
-        guard case let .node(nonTerminal, children) = node, children.count == 0 else {
-            fatalError("assert children == 0 not valid")
+        guard case .node(let nonTerminal, nil) = node else {
+            fatalError("assert node is unexpanded (derivations == nil) not valid")
         }
 
         // Fetch all possible expansions (derivations) from grammar...
@@ -140,8 +151,8 @@ extension GrammarFuzzer {
     /// Expands given non-terminal node with one production rule by applying given selection criteria to choose
     /// one among several possible grammar alternatives for given non-terminal.
     func expandNodeByCost(node: Derivation, choose: @escaping (([Int]) -> Int)) -> Derivation {
-        guard case let .node(nonTerminal,children) = node, children.count == 0 else {
-            fatalError("assert children == 0 not valid")
+        guard case .node(let nonTerminal, nil) = node else {
+            fatalError("assert node is unexpanded (derivations == nil) not valid")
         }
         // Fetch the possible expansions from grammar...
         let expansions = allRules(for: nonTerminal)
@@ -175,26 +186,40 @@ extension GrammarFuzzer {
     /// 1. Given tree-node contains only a non-terminal symbol which is expanded using given `expandMethod`.
     /// 2. Given tree-node contains unexpanded child nodes of which one is expanded using given `expandMethod`.
     func expandTreeOnce(_ tree: Derivation, expandMethod: @escaping (_: Derivation) -> Derivation) -> Derivation {
-        guard case .node(_, let children) = tree, children.count > 0 else {
-            // Expand this node (no children) with one method of { expandNodeMaxCost | expandNodeMinCost | expandNodeRandomly }.
+        switch tree {
+        case .leaf:
+            // Never reached in practice: callers only recurse into subtrees for
+            // which `anyPossibleExpansions` returned true, and a leaf never does.
+            return tree
+
+        case .node(_, nil):
+            // Not yet expanded: choose and apply a production for this node,
+            // with one method of { expandNodeMaxCost | expandNodeMinCost | expandNodeRandomly }.
             return expandMethod(tree)
+
+        case .node(_, .some(let children)) where children.isEmpty:
+            // Already expanded via an epsilon production (derivations == .some([])).
+            // It derives nothing further, so there is nothing to do here.
+            return tree
+
+        case .node(_, .some(let children)):
+            // Find all children with possible expansions.
+            let expandableChildren: [Derivation] = children.filter { anyPossibleExpansions(tree: $0) }
+
+            // `index_map` translates an index in `expandable_children` back into the original index in `children`
+            let indexMap: [Int] = children.enumerated().filter { child in expandableChildren.contains( where: { element -> Bool in
+                child.element == element
+            }) }.map { $0.offset }
+
+            // Select a random child.
+            let indexOfChildExpansion = chooseTreeExpansion(tree: tree, children: expandableChildren)
+
+            // Expand in place with one method of { expandNodeMaxCost | expandNodeMinCost | expandNodeRandomly }.
+            let expansion = expandTreeOnce(expandableChildren[indexOfChildExpansion], expandMethod: expandMethod)
+            children[indexMap[indexOfChildExpansion]] = expansion
+
+            return tree
         }
-        // Find all children with possible expansions.
-        let expandableChildren: [Derivation] = children.filter { anyPossibleExpansions(tree: $0) }
-        
-        // `index_map` translates an index in `expandable_children` back into the original index in `children`
-        let indexMap: [Int] = children.enumerated().filter { child in expandableChildren.contains( where: { element -> Bool in
-            child.element == element
-        }) }.map { $0.offset }
-
-        // Select a random child.
-        let indexOfChildExpansion = chooseTreeExpansion(tree: tree, children: expandableChildren)
-        
-        // Expand in place with one method of { expandNodeMaxCost | expandNodeMinCost | expandNodeRandomly }.
-        let expansion = expandTreeOnce(expandableChildren[indexOfChildExpansion], expandMethod: expandMethod)
-        children[indexMap[indexOfChildExpansion]] = expansion
-
-        return tree
     }
 
     func expandNodeMinCost(_ node: Derivation) -> Derivation {
