@@ -13,7 +13,7 @@ extension Grammar {
     /// Non-terminals which cannot be reached from the start non-terminal
     /// 2.9.5.2 Removing Unreachable Non-Terminals
     /// [1] Parsing Techniques
-    var unreachableNonTerminals: Set<NonTerminal> {
+    public var unreachableNonTerminals: Set<NonTerminal> {
         let productionSet: Set<Production> = Set(productions)
         let reachableProductions = Grammar.eliminateUnusedProductions(productions: productions, start: start).collect(Set.init)
         return productionSet.subtracting(reachableProductions).map{ $0.goal }.collect(Set.init)

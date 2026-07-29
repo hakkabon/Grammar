@@ -12,7 +12,7 @@ extension Grammar {
 
     /// Detects if there is a cycle in the grammar's non-terminal dependencies.
     /// - Returns: An array of cycles, where each cycle is a path of non-terminals.
-    func detectCycles() -> [[Symbol]] {
+    public func detectCycles() -> [[Symbol]] {
         var cycles: [[Symbol]] = []
         let nonTerminals = self.nonTerminals.map { Symbol.nonTerminal($0) }
 

@@ -25,12 +25,12 @@ A Swift package for constructing, analysing, transforming, and pretty-printing *
 
 A **context-free grammar** is defined by the tuple G = (V, T, P, S):
 
-| Component | Description |
+| Component | Description                             |
 |---|---|
-| V | Set of non-terminal symbols |
-| T | Set of terminal symbols |
-| P | Set of production rules P: N → (N ∪ T)* |
-| S | Start symbol |
+| V         | Set of non-terminal symbols             |
+| T         | Set of terminal symbols                 |
+| P         | Set of production rules P: N → (N ∪ T)* |
+| S         | Start symbol                            |
 
 The `Grammar` struct captures all four components and provides a rich API for working with grammars programmatically.
 
@@ -328,12 +328,12 @@ Factory functions in `Symbols.swift` reduce boilerplate: `t("a")`, `n("S")`, `rt
 
 Three parsers share the same `GrammarParser` tokenizer back-end and `StandardNotation` rewriter:
 
-| Initialiser | Notation | Non-terminal syntax | Definition | Separator |
+| Initialiser            | Notation | Non-terminal syntax | Definition    | Separator     |
 |---|---|---|---|---|
-| `Grammar(bnf:start:)` | BNF | `<name>` | `::=` | newline / `;` |
-| `Grammar(ebnf:start:)` | EBNF | `name` | `=` | `;` or `.` |
-| `Grammar(wsn:start:)` | WSN | `name` | `=` | `.` or `;` |
-| `Grammar(gen:)` | Generic | `<name>` or `name` | `:` `=` `::=` | optional |
+| `Grammar(bnf:start:)`  | BNF      | `<name>`            | `::=`         | newline / `;` |
+| `Grammar(ebnf:start:)` | EBNF     | `name`              | `=`           | `;` or `.`    |
+| `Grammar(wsn:start:)`  | WSN      | `name`              | `=`           | `.` or `;`    |
+| `Grammar(gen:)`        | Generic  | `<name>` or `name`  | `:` `=` `::=` | optional      |
 
 All four accept the same richly extended syntax including `{ }` repetition, `[ ]` option, `( )` grouping, regular expressions inside a `lexical { }` block, and multi-line comments.
 
@@ -373,14 +373,14 @@ The `Cat`, `Alt`, `Seq`, `Grp`, and `Opt` types map directly to concatenation, a
 
 ### `GrammarAnalysis/` — Static analysis
 
-| File | Algorithm | Public API |
+| File                   | Algorithm                            | Public API                                                                                                               |
 |---|---|---|
-| `FirstFollow.swift` | Fixed-point FIRST and FOLLOW | `firstAndFollow()`, `first(of:using:)`, `followSets()`, `isLL1(first:follow:)` |
-| `Nullable.swift` | Nullable non-terminal set | `allNullableNonTerminals()`, `isNullable(_:)` |
-| `LeftFactoring.swift` | Dragon Book Algorithm 4.21 | `leftFactoring() -> [Production]` |
-| `LeftRecursion.swift` | Dragon Book Algorithm 4.19 | `eliminateLeftRecursion() -> [Production]` |
-| `CycleDetection.swift` | DFS cycle detection | `detectCycles() -> [[Symbol]]` |
-| `Hygiene.swift` | Reachability / unit-rule elimination | `unreachableNonTerminals`, `undefinedNonterminals`, `eliminateUnusedProductions`, `eliminateUnitRules`, `eliminateEmpty` |
+| `FirstFollow.swift`    | Fixed-point FIRST and FOLLOW         | `firstAndFollow()`, `first(of:using:)`, `followSets()`, `isLL1(first:follow:)`                                           |
+| `Nullable.swift`       | Nullable non-terminal set            | `allNullableNonTerminals()`, `isNullable(_:)`                                                                            |
+| `LeftFactoring.swift`  | Dragon Book Algorithm 4.21           | `leftFactoring() -> [Production]`                                                                                        |
+| `LeftRecursion.swift`  | Dragon Book Algorithm 4.19           | `eliminateLeftRecursion() -> [Production]`                                                                               |
+| `CycleDetection.swift` | DFS cycle detection                  | `detectCycles() -> [[Symbol]]`                                                                                           |
+| `Hygiene.swift`        | Reachability / unit-rule elimination | `unreachableNonTerminals`, `undefinedNonterminals`, `eliminateUnusedProductions`, `eliminateUnitRules`, `eliminateEmpty` |
 
 ### `GrammarForms/` — Normal-form conversions
 
@@ -418,33 +418,33 @@ Every production becomes `A → a α` where `a` is a terminal and `α` is a (pos
 
 ## Dependencies
 
-| Package | Purpose |
+| Package                 | Purpose                                              |
 |---|---|
-| `GrammarTokenizer` | Tokeniser used by `GrammarParser` |
-| `GrammarDiagram` | ASCII railroad diagram rendering |
-| `TerminalColors` | ANSI colour output for diagnostics and tree printing |
-| `swift-algorithms` | `uniqued()` used in `Grammar.givenOrder` |
-| `swift-argument-parser` | Used by the `bnf` executable target |
+| `GrammarTokenizer`      | Tokeniser used by `GrammarParser`                    |
+| `GrammarDiagram`        | ASCII railroad diagram rendering                     |
+| `TerminalColors`        | ANSI colour output for diagnostics and tree printing |
+| `swift-algorithms`      | `uniqued()` used in `Grammar.givenOrder`             |
+| `swift-argument-parser` | Used by the `bnf` executable target                  |
 
 ---
 
 ## References
 
 1. Parsing Techniques, A Practical Guide, 2nd Edition  
-Dick Grune, Ceriel J.H. Jacobs,  
-Springer Publishing Company 2008  
- 
+   Dick Grune, Ceriel J.H. Jacobs,  
+   Springer Publishing Company 2008  
+
 2. Compilers: Principles, Techniques, and Tools, 2nd Edition  
-by Alfred V. Aho, Ravi Sethi, and Jeffrey D. Ullman  
-Addison Wesley 2007  
+   by Alfred V. Aho, Ravi Sethi, and Jeffrey D. Ullman  
+   Addison Wesley 2007  
 
 3. Crafting a compiler  
-by Charles N., Cytron, Ron K., LeBlanc Jr., Richard J Fischer  
-Pearson 2009  
- 
+   by Charles N., Cytron, Ron K., LeBlanc Jr., Richard J Fischer  
+   Pearson 2009  
+
 4. Automata, Computability and Complexity - Theory and Applications  
-by Elaine Rich  
-Pearson Education Inc. 2007  
+   by Elaine Rich  
+   Pearson Education Inc. 2007  
 
 ---
 
