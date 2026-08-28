@@ -7,7 +7,6 @@
 //
 
 import Foundation
-import OSLog
 import Tokenizer
 
 /// A slightly modified version of WSN (Wirth Syntax Notation) to accomodate
@@ -71,6 +70,8 @@ import Tokenizer
 ///```
 
 public class GrammarParser {
+
+    private let logging: GrammarLogging
     
     // Symbols that are recognized without any enclosing quotation marks.
     let symbols = [
@@ -144,10 +145,11 @@ public class GrammarParser {
     // ebnf/wsn or bnf notation?
     public private(set) var isExtended: Bool = false
     
-    public init(grammar input: String) {
+    public init(grammar input: String, logging: GrammarLogging = .disabled) {
         self.tokenizer = ParserInput(Tokenizer(input, symbols: Set<String>(symbols), keywords: Set<String>(keywords)))
         self.diagnosticReporter = DiagnosticReporter(source: input)
         self.source = input
+        self.logging = logging
         
         // Get first token
         self.currentToken = tokenizer.get()
@@ -237,7 +239,7 @@ extension GrammarParser {
                 // processing the next production. If we can dectect 'identifier ::=' ahead of current token,
                 // we know that a new production will start at the new token.
                 if case let .symbol(symbol) = tokenizer.peek(ahead: 1)?.type, definingSymbols.contains(symbol) {
-                    Logger.bnf.trace("new production detected: '\(self.currentToken.type)' followed by '\(symbol)'")
+                    logging.trace("new production detected: '\(self.currentToken.type)' followed by '\(symbol)'", category: .parser)
                     return
                 }
             }
@@ -247,7 +249,7 @@ extension GrammarParser {
                 // processing the next production. If we can dectect '< identifier > ::=' ahead of current token,
                 // we know that a new production will start at the new token.
                 if case let .symbol(symbol) = tokenizer.peek(ahead: 3)?.type, definingSymbols.contains(symbol) {
-                    Logger.bnf.trace("new production detected: '\(self.currentToken.type)' followed by '\(symbol)'")
+                    logging.trace("new production detected: '\(self.currentToken.type)' followed by '\(symbol)'", category: .parser)
                     break
                 }
             }
@@ -318,7 +320,7 @@ extension GrammarParser {
                 // processing the next production. If we can dectect 'identifier ::=' ahead of current token,
                 // we know that a new production will start at the new token.
                 if case let .symbol(symbol) = tokenizer.peek(ahead: 1)?.type, definingSymbols.contains(symbol) {
-                    Logger.bnf.trace("end-of-production detected: '\(self.currentToken.type)' followed by '\(symbol)'")
+                    logging.trace("end-of-production detected: '\(self.currentToken.type)' followed by '\(symbol)'", category: .parser)
                     break
                 }
             }
@@ -329,7 +331,7 @@ extension GrammarParser {
                 // processing the next production. If we can dectect '< identifier > ::=' ahead of current token,
                 // we know that a new production will start at the new token.
                 if case let .symbol(symbol) = tokenizer.peek(ahead: 3)?.type, definingSymbols.contains(symbol) {
-                    Logger.bnf.trace("end-of-production detected: '\(self.currentToken)' followed by '\(symbol)'")
+                    logging.trace("end-of-production detected: '\(self.currentToken)' followed by '\(symbol)'", category: .parser)
                     break
                 }
             }

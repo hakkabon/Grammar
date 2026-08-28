@@ -7,7 +7,6 @@
 //
 
 import Foundation
-import OSLog
 
 /// Eliminating Left Recursion is described in detail in the following books:
 /// [1] Parsing Techniques, 6.4 Eliminating Left Recursion

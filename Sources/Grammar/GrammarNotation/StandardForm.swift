@@ -7,7 +7,6 @@
 //
 
 import Foundation
-import OSLog
 
 /// Transforms an extended BNF grammar into Standard notation (BNF).
 /// Grammars containing ebnf constructs, such as
@@ -44,14 +43,16 @@ extension Grammar {
     /// Transforms an extended BNF grammars into Standard notation, plain BNF notation.
     ///
     /// - Returns: all productions reduced to BNF and all newly generated non-terminals.
-    public func rewriteToStandardForm() -> ([Production], Set<NonTerminal>) {
+    public func rewriteToStandardForm(logging: GrammarLogging = .disabled) -> ([Production], Set<NonTerminal>) {
         var nonTerminals = self.nonTerminals // these will increase when rewriting from EBNF to BNF.
         var generatedNonTerminals = Set<NonTerminal>()
         var rewritten: [Production] = []
         
         for production in self.productions {
             // First rewrite all pairs of meta-symbols contained in production.
-            let (newProductions, newNonTerminals) = reduceMetaSymbols(in: production, nonTerminals: nonTerminals)
+            let (newProductions, newNonTerminals) = reduceMetaSymbols(
+                in: production, nonTerminals: nonTerminals, logging: logging
+            )
             rewritten.append(contentsOf: newProductions)
             nonTerminals = nonTerminals.union(newNonTerminals)
             generatedNonTerminals = generatedNonTerminals.union(newNonTerminals)
@@ -68,7 +69,11 @@ extension Grammar {
     ///   - production: production to be reduced to BNF notation.
     ///   - nonTerminals: current valid set of non-terminals.
     /// - Returns: production reduced to BNF and all generated new non-terminals.
-    func reduceMetaSymbols(in production: Production, nonTerminals: Set<NonTerminal>) -> ([Production], Set<NonTerminal>) {
+    func reduceMetaSymbols(
+        in production: Production,
+        nonTerminals: Set<NonTerminal>,
+        logging: GrammarLogging = .disabled
+    ) -> ([Production], Set<NonTerminal>) {
         var nonTerminals = nonTerminals // will increase when rewriting from EBNF to BNF.
         var generatedNonTerminals = Set<NonTerminal>()
         var reduced: [Production] = []
@@ -78,17 +83,17 @@ extension Grammar {
             let p = worklist.removeFirst()
             switch matchingSymbols(symbols: p.rule) {
             case let .grouping(slice: slice, range: range):
-                let (newProductions, newNonTerminals) = reduceGroupings(in: slice, in: range, with: nonTerminals, in: p)
+                let (newProductions, newNonTerminals) = reduceGroupings(in: slice, in: range, with: nonTerminals, in: p, logging: logging)
                 worklist.append(contentsOf: newProductions)
                 nonTerminals = nonTerminals.union(newNonTerminals)
                 generatedNonTerminals = generatedNonTerminals.union(newNonTerminals)
             case let .option(slice: slice, range: range):
-                let (newProductions, newNonTerminals) = reduceOptions(in: slice, in: range, with: nonTerminals, in: p)
+                let (newProductions, newNonTerminals) = reduceOptions(in: slice, in: range, with: nonTerminals, in: p, logging: logging)
                 worklist.append(contentsOf: newProductions)
                 nonTerminals = nonTerminals.union(newNonTerminals)
                 generatedNonTerminals = generatedNonTerminals.union(newNonTerminals)
             case let .repetition(slice: slice, range: range):
-                let (newProductions, newNonTerminals) = reduceRepetitions(in: slice, in: range, with: nonTerminals, in: p)
+                let (newProductions, newNonTerminals) = reduceRepetitions(in: slice, in: range, with: nonTerminals, in: p, logging: logging)
                 worklist.append(contentsOf: newProductions)
                 nonTerminals = nonTerminals.union(newNonTerminals)
                 generatedNonTerminals = generatedNonTerminals.union(newNonTerminals)
@@ -108,7 +113,7 @@ extension Grammar {
     ///   N ← NewNonterminal()
     ///   p ← A → α N β
     ///   P ← P ∪ { N → X1...Xn }
-    func reduceGroupings(in slice: [Symbol], in range: Range<Int>, with nonTerminals: Set<NonTerminal>, in production: Production) -> ([Production],Set<NonTerminal>) {
+    func reduceGroupings(in slice: [Symbol], in range: Range<Int>, with nonTerminals: Set<NonTerminal>, in production: Production, logging: GrammarLogging = .disabled) -> ([Production],Set<NonTerminal>) {
         var nonTerminals = nonTerminals
 
         let N = generateNonterminal(withPrefix: production.goal.name, nonTerminals: nonTerminals)
@@ -116,10 +121,10 @@ extension Grammar {
 
         // p ← A → α N β (modify production)
         let p = modifyProduction(production, with: N, in: range)
-        Logger.grammar.info("inserted \(N) in range \(range) in production 'A → α N β' \(p)")
+        logging.information("inserted \(N) in range \(range) in production 'A → α N β' \(p)", category: .grammar)
 
         let p1 = Production(goal: N, rule: slice)
-        Logger.grammar.info("generated production 'N → X1...Xn' \(p1)")
+        logging.information("generated production 'N → X1...Xn' \(p1)", category: .grammar)
 
         return ([p, p1], Set(arrayLiteral: N))
     }
@@ -132,7 +137,7 @@ extension Grammar {
     ///   p ← A → α N β
     ///   P ← P ∪ { N → X1...Xn }
     ///   P ← P ∪ { N → ε }
-    func reduceOptions(in slice: [Symbol], in range: Range<Int>, with nonTerminals: Set<NonTerminal>, in production: Production) -> ([Production],Set<NonTerminal>) {
+    func reduceOptions(in slice: [Symbol], in range: Range<Int>, with nonTerminals: Set<NonTerminal>, in production: Production, logging: GrammarLogging = .disabled) -> ([Production],Set<NonTerminal>) {
         var nonTerminals = nonTerminals
 
         let N = generateNonterminal(withPrefix: production.goal.name, nonTerminals: nonTerminals)
@@ -140,14 +145,14 @@ extension Grammar {
 
         // p ← A → α N β (modify production)
         let p = modifyProduction(production, with: N, in: range)
-        Logger.grammar.info("inserted \(N) in range \(range) in production 'A → α N β' \(p)")
+        logging.information("inserted \(N) in range \(range) in production 'A → α N β' \(p)", category: .grammar)
 
         let p1 = Production(goal: N, rule: slice)
-        Logger.grammar.info("generated production 'N → X1...Xn' \(p1)")
+        logging.information("generated production 'N → X1...Xn' \(p1)", category: .grammar)
         // The empty/epsilon alternative is represented internally as `rule == []`;
         // the meta character ('ε' by default) is only ever applied when rendering.
         let p2 = Production(goal: N, rule: [])
-        Logger.grammar.info("generated production 'N → ε' \(p2)")
+        logging.information("generated production 'N → ε' \(p2)", category: .grammar)
 
         return ([p, p1, p2], Set(arrayLiteral: N))
     }
@@ -160,7 +165,7 @@ extension Grammar {
     ///   p ← A → γ N δ
     ///   P ← P ∪ { N → X1...Xn N }
     ///   P ← P ∪ { N → ε }
-    func reduceRepetitions(in slice: [Symbol], in range: Range<Int>, with nonTerminals: Set<NonTerminal>, in production: Production) -> ([Production], Set<NonTerminal>) {
+    func reduceRepetitions(in slice: [Symbol], in range: Range<Int>, with nonTerminals: Set<NonTerminal>, in production: Production, logging: GrammarLogging = .disabled) -> ([Production], Set<NonTerminal>) {
         var nonTerminals = nonTerminals
 
         let N = generateNonterminal(withPrefix: production.goal.name, nonTerminals: nonTerminals)
@@ -168,14 +173,14 @@ extension Grammar {
             
         // p ← A → γ N δ (modify production)
         let p = modifyProduction(production, with: N, in: range)
-        Logger.grammar.info("inserted \(N) in range \(range) in production A → γ N δ: \(p)")
+        logging.information("inserted \(N) in range \(range) in production A → γ N δ: \(p)", category: .grammar)
 
         let p1 = Production(goal: N, rule: slice + [Symbol.nonTerminal(N)])
-        Logger.grammar.info("generated production N → X1...Xn N: \(p1)")
+        logging.information("generated production N → X1...Xn N: \(p1)", category: .grammar)
         // The empty/epsilon alternative is represented internally as `rule == []`;
         // the meta character ('ε' by default) is only ever applied when rendering.
         let p2 = Production(goal: N, rule: [])
-        Logger.grammar.info("generated production N → ε: \(p2)")
+        logging.information("generated production N → ε: \(p2)", category: .grammar)
 
         return ([p, p1, p2], Set(arrayLiteral: N))
     }

@@ -7,7 +7,6 @@
 //
 
 import Foundation
-import OSLog
 
 extension Grammar {
 
@@ -41,7 +40,7 @@ extension Grammar {
     ///             Productions ← Productions ∪ { V → βp }
     ///         α ← LongestCommonPrefix(ProductionsFor(A))
     /// end
-    public func leftFactoring() -> [Production] {
+    public func leftFactoring(logging: GrammarLogging = .disabled) -> [Production] {
         var currentProductions = Set(self.productions)
         var nonTerminals = self.nonTerminals
 
@@ -82,7 +81,7 @@ extension Grammar {
                     let V = generateNonterminal(withPrefix: "V", nonTerminals: nonTerminals)
                     nonTerminals.insert(V)
                     
-                    Logger.grammar.info("non-terminal '\(nonTerminal)' longest common prefix: \(alpha)")
+                    logging.information("non-terminal '\(nonTerminal)' longest common prefix: \(alpha)", category: .grammar)
                     
                     // Filter productions of `nonTerminal` that start with alpha
                     let prodsToFactor = currentProductions.filter { $0.goal == nonTerminal && $0.rule.hasPrefix(alpha) }

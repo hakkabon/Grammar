@@ -14,6 +14,7 @@ A Swift package for constructing, analysing, transforming, and pretty-printing *
 - [Core Types](#core-types)
 - [Package Structure](#package-structure)
 - [Getting Started](#getting-started)
+- [Logging](#logging)
 - [Subdirectory Reference](#subdirectory-reference)
 - [References](#references)
 - [Installation](#installationb)
@@ -110,7 +111,7 @@ Sources/Grammar/
 ├── Grammar.swift                 Core Grammar struct
 ├── Production.swift              Production rule type
 ├── GrammarVocabulary.swift       Protocol for bootstrapping a lexer from keywords/symbols/patterns
-├── GrammarLogger.swift           OSLog category definitions
+├── GrammarLogger.swift           Portable structured logging and Apple OSLog adapter
 │
 ├── Symbols/                      The symbol type hierarchy
 │   ├── Symbol.swift              Enum: .terminal | .nonTerminal | .metaSymbol
@@ -210,6 +211,31 @@ let grammar = try Grammar(ebnf: """
     term = 'n' ;
 """, start: "expr")
 ```
+
+## Logging
+
+Grammar operations are silent by default. Hosts that need tracing can inject a
+`GrammarLogging` value backed by a `GrammarLogSink`:
+
+```swift
+struct ConsoleSink: GrammarLogSink {
+    func record(_ event: GrammarLogEvent) {
+        print("[\(event.category.rawValue)] \(event.message)")
+    }
+}
+
+let logging = GrammarLogging(sink: ConsoleSink())
+let parser = GrammarParser(grammar: source, logging: logging)
+_ = parser.parse()
+_ = grammar.rewriteToStandardForm(logging: logging)
+_ = grammar.leftFactoring(logging: logging)
+```
+
+`GrammarLogEvent` is a portable, `Codable`, `Sendable` value suitable for CLI,
+REPL, test, JSON, or hosted-service adapters. Apple clients may use `.osLog`;
+the core package conditionally compiles that adapter and does not require
+`OSLog` on Linux or WASI. Parser diagnostics remain separate from operational
+logging.
 
 ### 2 — Building a grammar in Swift code
 
@@ -471,4 +497,3 @@ targets: [
 ## License
 
 MIT License — see [LICENSE](LICENSE) for details.  
-
