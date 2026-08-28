@@ -33,11 +33,12 @@ extension Grammar {
         }
 
         for A in nonTerminals {
+            guard let prods = goalProductions[A] else { continue }
             var set = Set<Symbol>()
-            for p in goalProductions[A]! {
+            for p in prods {
                 var predict = calculateFirst(p.rule)
-                if predict.contains(eps) {
-                    predict.formUnion(follow[A]!)
+                if predict.contains(eps), let followA = follow[A] {
+                    predict.formUnion(followA)
                 }
                 if !set.intersection(predict).isEmpty { return false }
                 set.formUnion(predict)
