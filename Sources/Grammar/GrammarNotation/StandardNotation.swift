@@ -223,6 +223,21 @@ public struct StandardNotation {
             // complete, so any `<identifier>` reference resolved inside `processRule`
             // that names a lexical definition is substituted with its `Terminal`
             // automatically, wherever in the grammar it's used.
+            var parsedStart: String? = nil
+            var parsedEmpty: String? = nil
+            var firstProdGoal: String? = nil
+            for expression in expressions {
+                switch expression {
+                case .start(let s): parsedStart = s
+                case .empty(let s): parsedEmpty = s
+                case .production(let goal, _):
+                    if firstProdGoal == nil { firstProdGoal = goal }
+                default: break
+                }
+            }
+            start = parsedStart ?? firstProdGoal ?? ""
+            empty = parsedEmpty ?? "ε"
+
             for expression in expressions {
                 if case .production(let goal, let body) = expression {
                     let goal = NonTerminal(name: goal)
@@ -248,12 +263,6 @@ public struct StandardNotation {
                         let symbols = processRule(body)
                         addProduction(goal: goal, rule: symbols)
                     }
-                }
-                else if case .start(let symbol) = expression {
-                    start = symbol
-                }
-                else if case .empty(let symbol) = expression {
-                    empty = symbol
                 }
             }
         } else {
