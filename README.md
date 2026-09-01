@@ -480,7 +480,7 @@ Add this package to your Swift project using the Swift Package Manager.
 Add to your Package.swift:  
 ```swift
 dependencies: [
-    .package(name: "Grammar", url: "https://github.com/hakkabon/Grammar", branch: "main"),
+    .package(name: "Grammar", url: "https://github.com/hakkabon/Grammar", from: "0.1.0"),
 ],
 targets: [
     .target(

@@ -12,9 +12,18 @@ let package = Package(
     dependencies: [
         .package(url: "https://github.com/apple/swift-argument-parser.git", from: "1.6.2"),
         .package(url: "https://github.com/apple/swift-algorithms", from: "1.2.1"),
-        .package(url: "https://github.com/hakkabon/GrammarTokenizer.git", branch: "main"),
-        .package(url: "https://github.com/hakkabon/GrammarDiagram.git", branch: "main"),
-        .package(url: "https://github.com/hakkabon/TerminalColors.git", branch: "main"),
+        .package(
+            url: "https://github.com/hakkabon/GrammarTokenizer.git",
+            revision: "880af85a1f5809866f9656405c801fd04bcb4df9"
+        ),
+        .package(
+            url: "https://github.com/hakkabon/GrammarDiagram.git",
+            revision: "dc17ab061a1614ba0692be06aa69043b45bbbcd4"
+        ),
+        .package(
+            url: "https://github.com/hakkabon/TerminalColors.git",
+            revision: "d1ef429802e808ecdde4674221d892ae6d9f2215"
+        ),
     ],
     targets: [
         .target(name: "Grammar", dependencies: [
