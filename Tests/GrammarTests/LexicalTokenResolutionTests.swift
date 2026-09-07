@@ -10,8 +10,9 @@ import Testing
     ])
 
     let (_, _, _, _, tokens) = StandardNotation().rewriteToStandardNotation(syntax: syntax)
+    let expected = try Terminal(expression: "[a-zA-Z_][a-zA-Z0-9_]*")
 
-    #expect(tokens["Identifier"] == (try Terminal(expression: "[a-zA-Z_][a-zA-Z0-9_]*")))
+    #expect(tokens["Identifier"] == expected)
 }
 
 @Test func rewriteToStandardNotation_collectsRangeDefinition() {
@@ -61,7 +62,8 @@ import Testing
 
     #expect(productions.count == 1)
     let rule = try #require(productions.first?.rule)
-    #expect(rule == [.terminal(try #require(tokens["Identifier"]))])
+    let identifier = try #require(tokens["Identifier"])
+    #expect(rule == [.terminal(identifier)])
 }
 
 @Test func nonterminalReference_toRangeDefinition_becomesTerminal() {
@@ -113,7 +115,8 @@ import Testing
     let (productions, _, _, _, tokens) = StandardNotation().rewriteToStandardNotation(syntax: syntax)
 
     let rule = try #require(productions.first?.rule)
-    #expect(rule == [.terminal(try #require(tokens["Identifier"]))])
+    let identifier = try #require(tokens["Identifier"])
+    #expect(rule == [.terminal(identifier)])
 }
 
 // MARK: - Mixed alternatives: only the branches naming a lexical identifier are rewritten
