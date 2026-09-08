@@ -56,6 +56,11 @@ let grammar = try Grammar(bnf: """
 """, start: "E")
 ```
 
+For parser engines and cross-repository tooling, `Grammar.normalizedModel()`
+produces a versioned, lossless model with stable production identities and an
+engine-neutral deterministic analysis snapshot. See
+[Normalized grammar and analysis contract](NormalizedGrammar.md).
+
 ---
 
 ## Core Types

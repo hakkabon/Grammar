@@ -1,0 +1,156 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://hakkabon.github.io/Grammar/schemas/normalized-grammar-v1.json",
+  "title": "Normalized grammar model",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "startSymbol",
+    "productions",
+    "lexicalDefinitions",
+    "precedence",
+    "generatedNonterminals",
+    "epsilonSymbol",
+    "endOfInputSymbol"
+  ],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "startSymbol": { "$ref": "#/$defs/nonemptyString" },
+    "productions": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/production" }
+    },
+    "lexicalDefinitions": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/lexicalDefinition" }
+    },
+    "precedence": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/precedenceLevel" }
+    },
+    "generatedNonterminals": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": { "$ref": "#/$defs/nonemptyString" }
+    },
+    "epsilonSymbol": { "type": "string" },
+    "endOfInputSymbol": { "type": "string" }
+  },
+  "$defs": {
+    "nonemptyString": {
+      "type": "string",
+      "minLength": 1
+    },
+    "production": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "lhs", "rhs"],
+      "properties": {
+        "id": { "$ref": "#/$defs/nonemptyString" },
+        "lhs": { "$ref": "#/$defs/nonemptyString" },
+        "rhs": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/symbol" }
+        }
+      }
+    },
+    "symbol": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "terminal"],
+          "properties": {
+            "kind": { "const": "terminal" },
+            "terminal": { "$ref": "#/$defs/terminal" }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "name"],
+          "properties": {
+            "kind": { "const": "nonterminal" },
+            "name": { "$ref": "#/$defs/nonemptyString" }
+          }
+        }
+      ]
+    },
+    "terminal": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "value"],
+          "properties": {
+            "kind": { "const": "literal" },
+            "value": { "type": "string" }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "values"],
+          "properties": {
+            "kind": { "const": "literals" },
+            "values": { "type": "array", "items": { "type": "string" } }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "lower", "upper"],
+          "properties": {
+            "kind": { "const": "characterRange" },
+            "lower": { "type": "string", "minLength": 1 },
+            "upper": { "type": "string", "minLength": 1 }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "pattern"],
+          "properties": {
+            "kind": { "const": "regularExpression" },
+            "pattern": { "type": "string" }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "value"],
+          "properties": {
+            "kind": { "const": "boundary" },
+            "value": { "type": "string" }
+          }
+        }
+      ]
+    },
+    "lexicalDefinition": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "terminal"],
+      "properties": {
+        "name": { "$ref": "#/$defs/nonemptyString" },
+        "terminal": { "$ref": "#/$defs/terminal" }
+      }
+    },
+    "precedenceLevel": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["level", "associativity", "terminals"],
+      "properties": {
+        "level": { "type": "integer", "minimum": 1 },
+        "associativity": {
+          "enum": ["left", "right", "nonassociative"]
+        },
+        "terminals": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/terminal" }
+        }
+      }
+    }
+  }
+}
