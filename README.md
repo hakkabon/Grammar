@@ -60,6 +60,9 @@ For parser engines and cross-repository tooling, `Grammar.normalizedModel()`
 produces a versioned, lossless model with stable production identities and an
 engine-neutral deterministic analysis snapshot. See
 [Normalized grammar and analysis contract](NormalizedGrammar.md).
+Executable production-order and nonterminal-renaming witnesses build on that
+model without running a parser; see
+[Executable grammar laws](ExecutableGrammarLaws.md).
 
 ---
 

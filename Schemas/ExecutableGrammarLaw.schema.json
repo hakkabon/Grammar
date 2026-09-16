@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://hakkabon.github.io/Grammar/schemas/executable-grammar-law-v1.json",
+  "title": "Executable grammar law witness",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "kind", "id", "law", "baseline", "candidate", "renames"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "kind": { "const": "grammar-executable-law-witness" },
+    "id": { "type": "string", "minLength": 1 },
+    "law": { "enum": ["productionPermutation", "nonterminalAlphaRenaming"] },
+    "baseline": { "$ref": "NormalizedGrammar.schema.json" },
+    "candidate": { "$ref": "NormalizedGrammar.schema.json" },
+    "renames": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["from", "to"],
+        "properties": {
+          "from": { "type": "string", "minLength": 1 },
+          "to": { "type": "string", "minLength": 1 }
+        }
+      }
+    }
+  }
+}

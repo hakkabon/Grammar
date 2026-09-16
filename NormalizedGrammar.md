@@ -50,3 +50,6 @@ Source spans and lowering origins stay in authoring adapters, while parse-tree
 nodes and forests stay in Parser. The next ecosystem adoption step can therefore
 attach Workbench source identities to this model without moving editor concerns
 into Grammar.
+
+Executable metamorphic transformations are layered on this contract rather
+than weakening its invariants. See [Executable grammar laws](ExecutableGrammarLaws.md).
