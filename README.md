@@ -424,6 +424,11 @@ Every production becomes either `A → a` (single terminal) or `A → B C` (two 
 **Greibach Normal Form** (`GreilbachForm.swift`):  
 Every production becomes `A → a α` where `a` is a terminal and `α` is a (possibly empty) sequence of non-terminals. Six steps: ε-elimination → unit elimination → left-recursion elimination (Rosenkrantz–Stearns) → back-substitution → tail-terminal wrapping.
 
+The compatibility `grammarForm` property mutates productions when assigned a
+normal form; its transition semantics, `.none` behavior, and the remaining
+CYK normalization-ownership boundary are documented in
+[GrammarFormStateMachine.md](GrammarFormStateMachine.md).
+
 ### `GrammarFuzzer/` — Grammar-based fuzzing
 
 `GrammarFuzzer` and `SimpleGrammarFuzzer` generate random strings from a grammar by repeatedly expanding non-terminals. Derivation steps are captured in `DerivationTree` trees, allowing the full derivation history to be inspected. `DerivationTree.node` tracks whether a non-terminal has been expanded yet using an *optional* children list (`nil` = not yet expanded, `.some([])` = expanded via an epsilon production) so that grammars with nullable non-terminals terminate correctly — see [Documentation.md § 12](Documentation.md#12-grammarfuzzer) for details.

@@ -52,6 +52,9 @@ public struct Grammar: Codable {
                 self.productions = gnfGrammar.productions
                 self.generatedNonTerminals = gnfGrammar.generatedNonTerminals
             }
+            if newValue != .none {
+                self.nullableNonTerminals = Self.computeNullableNonTerminals(in: productions)
+            }
         }
     }
     
@@ -102,7 +105,7 @@ public struct Grammar: Codable {
     }
     
     /// All non-terminals which have productions which can produce an empty string
-    public let nullableNonTerminals: Set<NonTerminal>
+    public private(set) var nullableNonTerminals: Set<NonTerminal>
     
     /// Creates a new grammar with a given set of productions and a start non-terminal.
     ///
@@ -142,42 +145,33 @@ extension Grammar {
         //     If non-terminal B→α and all symbols appearing in α are variables that have
         //     been marked as nullable, then B is nullable.
         // Apply step 2 until no more variables can be marked as nullable.
-        nullableNonTerminals = {
-            var nullSet = Set<NonTerminal>()
-            // Basis: test for the obvious empty production
+        nullableNonTerminals = Self.computeNullableNonTerminals(in: productions)
+    }
+
+    private static func computeNullableNonTerminals(
+        in productions: [Production]
+    ) -> Set<NonTerminal> {
+        var nullSet = Set<NonTerminal>()
+        for production in productions where production.isNullable {
+            nullSet.insert(production.goal)
+        }
+        guard !nullSet.isEmpty else { return nullSet }
+
+        var previousCount: Int
+        repeat {
+            previousCount = nullSet.count
             for production in productions {
-                if production.isNullable { nullSet.insert(production.goal) }
-            }
-            if nullSet.count > 0 {
-                var isNullable = true
-                var size = nullSet.count
-                repeat {
-                    size = nullSet.count
-                    for p in productions {
-                        isNullable = true
-                        for symbol in p.rule {
-                            switch symbol {
-                            case .nonTerminal(let nt):
-                                if !nullSet.contains(nt) {
-                                    isNullable = false
-                                    break
-                                }
-                            case .terminal(let t):
-                                if !t.isEmpty {
-                                    isNullable = false
-                                    break
-                                }
-                            case .metaSymbol(_): break
-                            }
-                        }
-                        if isNullable {
-                            nullSet.insert(p.goal)
-                        }
+                let isNullable = production.rule.allSatisfy { symbol in
+                    switch symbol {
+                    case .nonTerminal(let nonTerminal): nullSet.contains(nonTerminal)
+                    case .terminal(let terminal): terminal.isEmpty
+                    case .metaSymbol: true
                     }
-                } while size != nullSet.count
+                }
+                if isNullable { nullSet.insert(production.goal) }
             }
-            return nullSet
-        }()
+        } while previousCount != nullSet.count
+        return nullSet
     }
 }
 
