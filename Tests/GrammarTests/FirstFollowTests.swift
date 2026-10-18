@@ -126,6 +126,55 @@ let eof: Symbol = Symbol.terminal(.meta(.eof))
     #expect(calculated == expected, "FIRST(S) should be {a}")
 }
 
+@Test func sequenceFirstStopsAfterANonNullableTerminal() {
+    let grammar = Grammar(
+        productions: [
+            Production(goal: NonTerminal(name: "S"), rule: [t("a"), t("b")])
+        ],
+        start: NonTerminal(name: "S"),
+        lexicalTokens: [:]
+    )
+
+    let first = grammar.first(of: [n("S")])
+    #expect(first.terminals == [t("a")])
+    #expect(!first.nullable)
+}
+
+@Test func sequenceFirstStopsAfterANonNullableNonterminal() {
+    let grammar = Grammar(
+        productions: [
+            Production(goal: NonTerminal(name: "S"), rule: [n("A"), n("B")]),
+            Production(goal: NonTerminal(name: "A"), rule: [t("a")]),
+            Production(goal: NonTerminal(name: "B"), rule: [t("b")])
+        ],
+        start: NonTerminal(name: "S"),
+        lexicalTokens: [:]
+    )
+
+    let first = grammar.first(of: [n("S")])
+    #expect(first.terminals == [t("a")])
+    #expect(!first.nullable)
+}
+
+@Test func sequenceFirstReachesPastNullableAndMutuallyRecursivePrefixes() {
+    let grammar = Grammar(
+        productions: [
+            Production(goal: NonTerminal(name: "S"), rule: [n("A"), n("B")]),
+            Production(goal: NonTerminal(name: "A"), rule: [n("C")]),
+            Production(goal: NonTerminal(name: "A"), rule: []),
+            Production(goal: NonTerminal(name: "B"), rule: [n("C")]),
+            Production(goal: NonTerminal(name: "C"), rule: [n("B")]),
+            Production(goal: NonTerminal(name: "C"), rule: [t("c")])
+        ],
+        start: NonTerminal(name: "S"),
+        lexicalTokens: [:]
+    )
+
+    let first = grammar.first(of: [n("S")])
+    #expect(first.terminals == [t("c")])
+    #expect(!first.nullable)
+}
+
 @Test func firstSet_multipleAlternatives() async throws {
     // Grammar: S → "a" | "b" | "c"
     let grammarString = """

@@ -252,21 +252,21 @@ extension Grammar {
         while changed {
             changed = false
             for production in productions {
-                for symbol in production.rule {
+                productionSymbols: for symbol in production.rule {
                     switch symbol {
                     case .terminal(let t) where t.isEmpty:
                         continue
                     case .terminal:
                         if firstSets[production.goal, default: []].insert(symbol).inserted { changed = true }
-                        break
+                        break productionSymbols
                     case .nonTerminal(let nt):
                         let symbols = firstSets[nt, default: []]
                         for t in symbols {
                             if firstSets[production.goal, default: []].insert(t).inserted { changed = true }
                         }
-                        if !nullableNonTerminals.contains(nt) { break }
+                        if !nullableNonTerminals.contains(nt) { break productionSymbols }
                     case .metaSymbol: // These are the bnf/ebnf [], {}, (), |, etc. symbols
-                        break
+                        break productionSymbols
                     }
                 }
             }
