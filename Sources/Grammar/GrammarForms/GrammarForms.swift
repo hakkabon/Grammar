@@ -8,6 +8,42 @@
 
 import Foundation
 
+/// A structural ordering key used only to make normal-form emission stable.
+/// Length prefixes prevent values containing separators from colliding.
+func normalFormTerminalOrderingKey(_ terminal: Terminal) -> String {
+    switch terminal {
+    case .string(let string):
+        return "s\(string.count):\(string)"
+    case .stringList(let list):
+        return "l" + list.map { "\($0.count):\($0)" }.joined(separator: ",")
+    case .characterRange(let range):
+        return "c\(range.lowerBound)-\(range.upperBound)"
+    case .regularExpression(let expression):
+        return "r\(expression.pattern.count):\(expression.pattern)"
+    case .meta(let meta):
+        return "m\(meta.rawValue.count):\(meta.rawValue)"
+    }
+}
+
+func normalFormRuleOrderingKey(_ rule: [Symbol]) -> String {
+    rule.map { symbol in
+        let kind: String
+        let value: String
+        switch symbol {
+        case .nonTerminal(let nonterminal):
+            kind = "n"
+            value = nonterminal.name
+        case .metaSymbol(let meta):
+            kind = "m"
+            value = meta.rawValue
+        case .terminal(let terminal):
+            kind = "t"
+            value = normalFormTerminalOrderingKey(terminal)
+        }
+        return "\(kind)\(value.count):\(value)"
+    }.joined(separator: "|")
+}
+
 public extension Grammar {
     
     /// Returns true, if the grammar is in chomsky normal form.

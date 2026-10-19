@@ -53,3 +53,7 @@ into Grammar.
 
 Executable metamorphic transformations are layered on this contract rather
 than weakening its invariants. See [Executable grammar laws](ExecutableGrammarLaws.md).
+
+Normal-form rewrites use the same parser-facing model while adding a total,
+versioned ancestry relation. See
+[Provenance-preserving grammar normalization](ProvenancePreservingNormalization.md).

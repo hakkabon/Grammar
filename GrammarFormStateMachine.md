@@ -20,15 +20,16 @@ source grammar and use `rewriteToStandardForm()`, `toChomskyNormalForm()`, or
 Grammar owns public CNF and GNF transformations. CYK-Parser still contains an
 independent `CNFConverter` because it emits engine-specific `CNFRule` values
 and generated-name conventions that `TreeTransformer` uses to reconstruct
-natural trees. Removing that duplication safely requires a shared
-normalization-result contract containing:
+natural trees. Removing that duplication safely requires the shared
+normalization-result contract now published by Grammar. It contains:
 
 - normalized productions and generated-symbol identity;
 - source-production provenance for every introduced rule;
 - terminal-wrapper and binarization mappings; and
 - enough information to project packed CYK results back to original trees.
 
-The recommended dependency-first follow-up is to add that result contract to
-Grammar, verify language preservation and tree reconstruction against a shared
-corpus, migrate CYK-Parser to it, and only then delete CYK's converter. The
-Phase 20 study-explorer work does not change either normalization algorithm.
+The dependency-first follow-up is to verify language preservation and tree
+reconstruction against the shared corpus, migrate CYK-Parser to the report, and
+only then delete CYK's converter. See
+[Provenance-preserving grammar normalization](ProvenancePreservingNormalization.md).
+The Phase 20 study-explorer work does not change either normalization algorithm.

@@ -1,0 +1,57 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://hakkabon.github.io/Grammar/schemas/normalization-report-v1.json",
+  "title": "Grammar normalization provenance report",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "target", "sourceProductions", "output", "appliedStages", "provenance"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "target": { "enum": ["none", "standard", "chomsky", "greibach"] },
+    "sourceProductions": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/sourceProduction" }
+    },
+    "output": { "$ref": "NormalizedGrammar.schema.json" },
+    "appliedStages": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "enum": ["standardNotation", "epsilonElimination", "unitElimination", "terminalIsolation", "binarization", "leftRecursionElimination", "leadingNonterminalExpansion", "tailTerminalIsolation"]
+      }
+    },
+    "provenance": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/provenance" }
+    }
+  },
+  "$defs": {
+    "nonemptyString": { "type": "string", "minLength": 1 },
+    "sourceProduction": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "lhs", "rhs"],
+      "properties": {
+        "id": { "$ref": "#/$defs/nonemptyString" },
+        "lhs": { "$ref": "#/$defs/nonemptyString" },
+        "rhs": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "provenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["outputProductionID", "sourceProductionIDs", "kind", "precision"],
+      "properties": {
+        "outputProductionID": { "$ref": "#/$defs/nonemptyString" },
+        "sourceProductionIDs": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/nonemptyString" }
+        },
+        "kind": { "enum": ["preserved", "derived", "synthetic"] },
+        "precision": { "enum": ["exact", "conservative"] }
+      }
+    }
+  }
+}

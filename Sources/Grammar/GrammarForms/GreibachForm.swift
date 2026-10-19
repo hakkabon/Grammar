@@ -29,12 +29,15 @@ extension Grammar {
     public func toGreibachNormalForm() -> Grammar {
         let converter = GreibachNormalFormConverter()
         let gnfProductions = converter.convert(productions, startSymbol: start)
+        let generated = generatedNonTerminals.union(
+            Set(gnfProductions.map(\.goal)).subtracting(nonTerminals)
+        )
         return Grammar(
             productions: gnfProductions,
             start: start,
             empty: epsilon,
             lexicalTokens: lexicalTokens,
-            generatedNonTerminals: generatedNonTerminals
+            generatedNonTerminals: generated
         )
     }
 
@@ -43,10 +46,16 @@ extension Grammar {
     class GreibachNormalFormConverter {
 
         private var counter = 0
+        private var occupiedNames: Set<String> = []
 
         private func freshNT(prefix: String) -> NonTerminal {
-            defer { counter += 1 }
-            return NonTerminal(name: "\(prefix)\(counter)")
+            while true {
+                let candidate = "\(prefix)\(counter)"
+                counter += 1
+                if occupiedNames.insert(candidate).inserted {
+                    return NonTerminal(name: candidate)
+                }
+            }
         }
 
         // MARK: Convert
@@ -54,6 +63,9 @@ extension Grammar {
         /// Convert the given productions to GNF.
         func convert(_ productions: [Production], startSymbol: NonTerminal) -> [Production] {
             counter = 0
+            occupiedNames = Set(productions.flatMap { production in
+                [production.goal.name] + production.rule.compactMap(\.nonTerminal?.name)
+            })
 
             let cnf = ChomskyNormalFormConverter()
 
@@ -251,13 +263,13 @@ extension Grammar {
                     }
                     // Keep the first symbol as-is (it must already be a terminal after step 5)
                     let head = rule[0]
-                    let tail: [Symbol] = rule.dropFirst().map { sym in
-                        guard sym.isTerminal else { return sym }
-                        let key = sym.description
+                    let tail: [Symbol] = rule.dropFirst().map { symbol in
+                        guard case .terminal(let terminal) = symbol else { return symbol }
+                        let key = normalFormTerminalOrderingKey(terminal)
                         if let existing = termMap[key] { return .nonTerminal(existing) }
                         let fresh = freshNT(prefix: "T")
                         termMap[key] = fresh
-                        result[fresh] = [[sym]]
+                        result[fresh] = [[symbol]]
                         return .nonTerminal(fresh)
                     }
                     newRules.append([head] + tail)
@@ -278,7 +290,11 @@ extension Grammar {
         }
 
         private func ungroup(_ grouped: [NonTerminal: [[Symbol]]]) -> [Production] {
-            grouped.flatMap { nt, rules in rules.map { Production(goal: nt, rule: $0) } }
+            grouped.keys.sorted { $0.name < $1.name }.flatMap { nt in
+                grouped[nt, default: []]
+                    .sorted { normalFormRuleOrderingKey($0) < normalFormRuleOrderingKey($1) }
+                    .map { Production(goal: nt, rule: $0) }
+            }
         }
     }
 }

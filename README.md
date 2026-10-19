@@ -63,6 +63,9 @@ engine-neutral deterministic analysis snapshot. See
 Executable production-order and nonterminal-renaming witnesses build on that
 model without running a parser; see
 [Executable grammar laws](ExecutableGrammarLaws.md).
+Normal-form consumers can retain source ancestry through the versioned
+`GrammarNormalizationReport`; see
+[Provenance-preserving grammar normalization](ProvenancePreservingNormalization.md).
 
 ---
 
@@ -428,6 +431,9 @@ The compatibility `grammarForm` property mutates productions when assigned a
 normal form; its transition semantics, `.none` behavior, and the remaining
 CYK normalization-ownership boundary are documented in
 [GrammarFormStateMachine.md](GrammarFormStateMachine.md).
+The deterministic, total provenance report used for future engine migration is
+documented in
+[ProvenancePreservingNormalization.md](ProvenancePreservingNormalization.md).
 
 ### `GrammarFuzzer/` — Grammar-based fuzzing
 

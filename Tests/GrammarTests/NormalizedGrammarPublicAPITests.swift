@@ -22,3 +22,21 @@ import Testing
     #expect(analysis.isLL1)
     #expect(analysis.reachableNonterminals == ["Expression", "Name"])
 }
+
+@Test func normalizationProvenanceIsUsableWithoutTestableImport() throws {
+    let grammar = Grammar(
+        productions: [
+            Production(
+                goal: NonTerminal(name: "S"),
+                rule: [.terminal(Terminal(string: "value"))]
+            )
+        ],
+        start: NonTerminal(name: "S"),
+        lexicalTokens: [:]
+    )
+
+    let report = try grammar.normalizationReport(to: .chomsky)
+    #expect(report.schemaVersion == GrammarNormalizationReport.currentSchemaVersion)
+    #expect(report.preservesCompleteProvenance)
+    #expect(report.provenance.first?.precision == .exact)
+}
