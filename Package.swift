@@ -12,10 +12,7 @@ let package = Package(
     dependencies: [
         .package(url: "https://github.com/apple/swift-argument-parser.git", from: "1.6.2"),
         .package(url: "https://github.com/apple/swift-algorithms", from: "1.2.1"),
-        .package(
-            url: "https://github.com/hakkabon/GrammarTokenizer.git",
-            .upToNextMinor(from: "0.1.0")
-        ),
+        .package(path: "../GrammarTokenizer"),
         .package(
             url: "https://github.com/hakkabon/GrammarDiagram.git",
             .upToNextMinor(from: "0.1.0")
