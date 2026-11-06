@@ -9,7 +9,7 @@ the productions for parser engines.
 > Program
 
 lexical {
-    keyword BEGIN = "begin";
+    keyword BEGIN = insensitive("begin");
     token IDENTIFIER = /[A-Za-z_][A-Za-z0-9_]*/;
     symbol ASSIGN = ":=";
     trivia WHITESPACE = /\s+/;
@@ -30,6 +30,10 @@ The four declarators establish stable priority and channel semantics:
 Maximal munch wins first; priority and declaration order resolve equal-length
 matches. Structured comment rules avoid regex assertions and allow scanners to
 report unterminated comments precisely.
+
+`insensitive("...")` is an explicit literal matcher for languages such as
+Pascal. It remains readable, participates in the same keyword priority rules,
+and does not require a duplicated language-specific keyword table.
 
 `Lexer.GrammarDrivenLexer` consumes the specification directly. It publishes
 UTF-16 ranges, significant tokens, retained trivia, and diagnostics, and it

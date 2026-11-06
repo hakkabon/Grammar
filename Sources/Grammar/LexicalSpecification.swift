@@ -13,6 +13,7 @@ public enum LexicalChannel: String, Codable, Hashable, Sendable {
 /// readable and gives incremental scanners explicit restart-state semantics.
 public enum LexicalMatcher: Codable, Hashable, Sendable {
     case literal(String)
+    case caseInsensitiveLiteral(String)
     case regularExpression(String)
     case characterRange(String, String)
     case literals([String])
@@ -22,6 +23,8 @@ public enum LexicalMatcher: Codable, Hashable, Sendable {
     public var displaySource: String {
         switch self {
         case .literal(let value): return "\"\(value)\""
+        case .caseInsensitiveLiteral(let value):
+            return "insensitive(\"\(value)\")"
         case .regularExpression(let pattern): return "/\(pattern)/"
         case .characterRange(let lower, let upper):
             return "\"\(lower)\" .. \"\(upper)\""
@@ -38,6 +41,7 @@ public enum LexicalMatcher: Codable, Hashable, Sendable {
     public var terminal: Terminal? {
         switch self {
         case .literal(let value): return Terminal(list: [value])
+        case .caseInsensitiveLiteral(let value): return Terminal(list: [value])
         case .regularExpression(let pattern): return try? Terminal(expression: pattern)
         case .characterRange(let lower, let upper):
             guard lower.count == 1, upper.count == 1,

@@ -619,6 +619,20 @@ extension GrammarParser {
                 return expression
             }
 
+        case .identifier(let constructor) where constructor == "insensitive":
+            advance()
+            try match(.symbol("("), "Expected '(' after insensitive")
+            guard case .literal(let literal) = currentToken.type else {
+                throw makeError("Expected literal in insensitive")
+            }
+            advance()
+            try match(.symbol(")"), "Expected ')' after insensitive")
+            if eolSymbols.contains(currentToken.type.value) { advance() }
+            try registerLexicalRule(
+                name: identifier, matcher: .caseInsensitiveLiteral(literal),
+                declarator: declarator)
+            return .list(identifier, [literal])
+
         case .identifier(let constructor)
             where constructor == "lineComment" || constructor == "blockComment":
             advance()

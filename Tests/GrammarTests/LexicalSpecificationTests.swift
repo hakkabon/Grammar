@@ -6,7 +6,7 @@ import Testing
 struct LexicalSpecificationTests {
     private let source = #"""
     lexical {
-        keyword BEGIN = "begin";
+        keyword BEGIN = insensitive("begin");
         token IDENTIFIER = /[A-Za-z_][A-Za-z0-9_]*/;
         symbol ASSIGN = ":=";
         trivia WHITESPACE = /\s+/;
@@ -25,7 +25,8 @@ struct LexicalSpecificationTests {
             "BEGIN", "IDENTIFIER", "ASSIGN", "WHITESPACE",
             "LINE_COMMENT", "BLOCK_COMMENT",
         ])
-        #expect(parser.lexicalSpecification["BEGIN"]?.matcher == .literal("begin"))
+        #expect(parser.lexicalSpecification["BEGIN"]?.matcher
+            == .caseInsensitiveLiteral("begin"))
         #expect(parser.lexicalSpecification["WHITESPACE"]?.channel == .trivia)
         #expect(parser.lexicalSpecification["LINE_COMMENT"]?.matcher == .lineComment("//"))
         #expect(parser.lexicalSpecification["BLOCK_COMMENT"]?.matcher
