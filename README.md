@@ -35,6 +35,10 @@ A **context-free grammar** is defined by the tuple G = (V, T, P, S):
 
 The `Grammar` struct captures all four components and provides a rich API for working with grammars programmatically.
 
+Language grammar files may also carry an ordered `LexicalSpecification` in a
+readable `lexical { ... }` block. The same artifact drives Lexer's batch and
+incremental scanners; see [Grammar and lexical pipeline](LexicalPipeline.md).
+
 ```swift
 // Build a grammar in code
 let grammar = Grammar(productions: [
@@ -112,6 +116,10 @@ beyond declaring it — it's consumed by
 any conforming type, automatically resolving the keyword-vs-identifier
 priority problem (see that module's README for the full rationale). See
 [§7](#7--bootstrapping-a-lexer-from-a-grammarvocabulary) below.
+
+`GrammarVocabulary` remains a compatibility API for programmatic grammars.
+Textual language definitions should use `LexicalSpecification`, which also
+models declaration order, priorities, retained trivia, and delimited comments.
 
 ---
 

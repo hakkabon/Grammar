@@ -134,9 +134,14 @@ public class GrammarParser {
     // Keywords that are recognized without any enclosing quotation marks.
     let keywords: [String] = ["lexical", "Lexical", "LEXICAL"] // allow 3 different spellings
     
-    private var tokenizer: ParserInput<Tokenizer>
+    private var tokenizer: ParserInput<GrammarTokenizer>
     private var currentToken: Token
     private var source: String
+
+    private var lexicalRules: [LexicalRuleDefinition] = []
+    public var lexicalSpecification: LexicalSpecification {
+        LexicalSpecification(rules: lexicalRules)
+    }
     
     // Accumulate errors using diagnostics.
     public private(set) var diagnostics: [ParserDiagnostic] = []
@@ -146,7 +151,10 @@ public class GrammarParser {
     public private(set) var isExtended: Bool = false
     
     public init(grammar input: String, logging: GrammarLogging = .disabled) {
-        self.tokenizer = ParserInput(Tokenizer(input, symbols: Set<String>(symbols), keywords: Set<String>(keywords)))
+        self.tokenizer = ParserInput(GrammarTokenizer(
+            input,
+            extraSymbols: Set<String>(symbols),
+            extraKeywords: Set<String>(keywords)))
         self.diagnosticReporter = DiagnosticReporter(source: input)
         self.source = input
         self.logging = logging
@@ -166,6 +174,7 @@ extension GrammarParser {
         
         // Clear stale diagnostics from previous runs
         diagnostics.removeAll()
+        lexicalRules.removeAll()
         
         while currentToken.type != .eof {
             do {
@@ -510,8 +519,28 @@ extension GrammarParser {
         while currentToken.type != .symbol("}") {
             switch currentToken.type {
 
+            case .keyword(let declarator)
+                where ["keyword", "token", "symbol", "trivia"].contains(declarator):
+                advance()
+                guard case .identifier(let identifier) = currentToken.type else {
+                    throw makeError("Expected lexical rule name after '\(declarator)'")
+                }
+                lexicalDefinitions.append(try parseLexicalDefinition(
+                    for: identifier, declarator: declarator))
+
             case .identifier(let identifier):
-                lexicalDefinitions.append(try parseLexicalDefinition(for: identifier))
+                if ["keyword", "token", "symbol", "trivia"].contains(identifier),
+                   case .identifier = tokenizer.peek()?.type {
+                    advance()
+                    guard case .identifier(let name) = currentToken.type else {
+                        throw makeError("Expected lexical rule name after '\(identifier)'")
+                    }
+                    lexicalDefinitions.append(try parseLexicalDefinition(
+                        for: name, declarator: identifier))
+                } else {
+                    lexicalDefinitions.append(try parseLexicalDefinition(
+                        for: identifier, declarator: "token"))
+                }
 
             case .literal(let name):
                 throw makeError("Expected indentifier found literal '\(name)'")
@@ -536,7 +565,9 @@ extension GrammarParser {
     ///     terminated with new line or terminator character.
     ///
     /// - Returns: a type 3 level expression of type `BnfExpression`.
-    private func parseLexicalDefinition(for identifier: String) throws -> BnfExpression {
+    private func parseLexicalDefinition(
+        for identifier: String, declarator: String
+    ) throws -> BnfExpression {
         try match(.identifier(identifier), "Expected indentifier found '\(identifier)'")
 
         if !definingSymbols.contains(currentToken.type.value) {
@@ -551,6 +582,9 @@ extension GrammarParser {
             // Allow for an optional line termination - most people are used to this convention.
             if eolSymbols.contains(currentToken.type.value) { advance() }
 
+            try registerLexicalRule(
+                name: identifier, matcher: .regularExpression(regex),
+                declarator: declarator)
             return .regex(identifier,regex)
             
         case .literal(let literal):
@@ -565,15 +599,73 @@ extension GrammarParser {
                 // Allow for an optional line termination - most people are used to this convention.
                 if eolSymbols.contains(currentToken.type.value) { advance() }
 
+                try registerLexicalRule(
+                    name: identifier,
+                    matcher: .characterRange(literal, upperBound),
+                    declarator: declarator)
                 return .range(identifier, literal, upperBound)
                 
             } else {
-                return try parseListDefinition(for: identifier, firstElement: literal)
+                let expression = try parseListDefinition(
+                    for: identifier, firstElement: literal)
+                guard case .list(_, let values) = expression else {
+                    throw makeError("Invalid literal lexical rule '\(identifier)'")
+                }
+                let matcher: LexicalMatcher = values.count == 1
+                    ? .literal(values[0]) : .literals(values)
+                try registerLexicalRule(
+                    name: identifier, matcher: matcher,
+                    declarator: declarator)
+                return expression
             }
+
+        case .identifier(let constructor)
+            where constructor == "lineComment" || constructor == "blockComment":
+            advance()
+            try match(.symbol("("), "Expected '(' after \(constructor)")
+            guard case .literal(let opening) = currentToken.type else {
+                throw makeError("Expected comment delimiter in \(constructor)")
+            }
+            advance()
+            let matcher: LexicalMatcher
+            if constructor == "lineComment" {
+                matcher = .lineComment(opening)
+            } else {
+                try match(.symbol(","), "Expected ',' between block-comment delimiters")
+                guard case .literal(let closing) = currentToken.type else {
+                    throw makeError("Expected closing delimiter in blockComment")
+                }
+                advance()
+                matcher = .blockComment(open: opening, close: closing)
+            }
+            try match(.symbol(")"), "Expected ')' after \(constructor)")
+            if eolSymbols.contains(currentToken.type.value) { advance() }
+            try registerLexicalRule(
+                name: identifier, matcher: matcher,
+                declarator: declarator)
+            return .list(identifier, [])
         
         default:
             throw makeError("Expected name of lexical identifier.")
         }
+    }
+
+    private func registerLexicalRule(
+        name: String, matcher: LexicalMatcher, declarator: String
+    ) throws {
+        guard !lexicalRules.contains(where: { $0.name == name }) else {
+            throw makeError("Duplicate lexical rule '\(name)'")
+        }
+        let channel: LexicalChannel = declarator == "trivia" ? .trivia : .significant
+        let priority: Int
+        switch declarator {
+        case "keyword": priority = 0
+        case "symbol": priority = 1
+        case "token": priority = 2
+        default: priority = 3
+        }
+        lexicalRules.append(LexicalRuleDefinition(
+            name: name, matcher: matcher, channel: channel, priority: priority))
     }
     
     func parseListDefinition(for identifier: String, firstElement: String) throws -> BnfExpression {
@@ -590,8 +682,6 @@ extension GrammarParser {
         // Allow for an optional line termination - most people are used to this convention.
         if eolSymbols.contains(currentToken.type.value) { advance() }
 
-        print("holy moly a list of elements")
-        
         return .list(identifier, elements)
     }
 }

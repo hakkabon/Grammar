@@ -103,5 +103,6 @@ extension Grammar {
         self.init(productions: productions, start: NonTerminal(name: start), lexicalTokens: tokens)
         self.syntaxTree = syntaxTree
         self.generatedNonTerminals = nonTerminals
+        self.lexicalSpecification = parser.lexicalSpecification
     }
 }

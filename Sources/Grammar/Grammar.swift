@@ -91,6 +91,11 @@ public struct Grammar: Codable {
     /// become real `.terminal` symbols during rewriting rather than dangling
     /// non-terminal references. See `StandardNotation.rewriteToStandardNotation`.
     public let lexicalTokens: [String: Terminal]
+
+    /// Ordered, named lexer rules parsed from the same source as the grammar.
+    /// Older programmatic grammars may leave this empty and continue to use
+    /// `lexicalTokens` directly.
+    public var lexicalSpecification: LexicalSpecification = .empty
     
     /// Parse Tree of the original grammar definition.
     /// The orignal grammar may be more sofisticated than the final grammar, which
@@ -209,6 +214,59 @@ extension Grammar {
     public init(start: NonTerminal, @GrammarRuleBuilder builder: () -> [Rule]) {
         let (productions, generatedNonTerminals) = RuleNotation().rewrite(builder())
         self.init(productions: productions, start: start, empty: .eps, lexicalTokens: [:], generatedNonTerminals: generatedNonTerminals)
+    }
+}
+
+extension Grammar {
+    private enum CodingKeys: String, CodingKey {
+        case productions
+        case grammarForm
+        case start
+        case epsilon
+        case endofile
+        case generatedNonTerminals
+        case lexicalTokens
+        case lexicalSpecification
+        case syntaxTree
+        case nullableNonTerminals
+    }
+
+    /// Keeps grammar artifacts written before the unified lexical pipeline
+    /// decodable. Those artifacts have `lexicalTokens`, but no ordered lexical
+    /// specification, so they naturally decode to an empty specification.
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        productions = try container.decode([Production].self, forKey: .productions)
+        grammarForm = try container.decodeIfPresent(GrammarForm.self, forKey: .grammarForm)
+            ?? .none
+        start = try container.decode(NonTerminal.self, forKey: .start)
+        epsilon = try container.decodeIfPresent(MetaTerminal.self, forKey: .epsilon) ?? .eps
+        endofile = try container.decodeIfPresent(MetaTerminal.self, forKey: .endofile) ?? .eof
+        generatedNonTerminals = try container.decodeIfPresent(
+            Set<NonTerminal>.self, forKey: .generatedNonTerminals) ?? []
+        lexicalTokens = try container.decodeIfPresent(
+            [String: Terminal].self, forKey: .lexicalTokens) ?? [:]
+        lexicalSpecification = try container.decodeIfPresent(
+            LexicalSpecification.self, forKey: .lexicalSpecification) ?? .empty
+        syntaxTree = try container.decodeIfPresent(BnfExpression.self, forKey: .syntaxTree)
+            ?? .syntax([])
+        nullableNonTerminals = try container.decodeIfPresent(
+            Set<NonTerminal>.self, forKey: .nullableNonTerminals)
+            ?? Self.computeNullableNonTerminals(in: productions)
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(productions, forKey: .productions)
+        try container.encode(grammarForm, forKey: .grammarForm)
+        try container.encode(start, forKey: .start)
+        try container.encode(epsilon, forKey: .epsilon)
+        try container.encode(endofile, forKey: .endofile)
+        try container.encode(generatedNonTerminals, forKey: .generatedNonTerminals)
+        try container.encode(lexicalTokens, forKey: .lexicalTokens)
+        try container.encode(lexicalSpecification, forKey: .lexicalSpecification)
+        try container.encode(syntaxTree, forKey: .syntaxTree)
+        try container.encode(nullableNonTerminals, forKey: .nullableNonTerminals)
     }
 }
 
