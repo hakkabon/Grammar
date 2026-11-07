@@ -19,6 +19,32 @@ public struct GrammarProductionID: RawRepresentable, Hashable, Codable, Sendable
         lhs.rawValue < rhs.rawValue
     }
 
+    /// Content identity shared by parser engines and grammar-change deltas.
+    /// Framing prevents ambiguities between adjacent symbol spellings.
+    public init(goal: NonTerminal, symbols: [Symbol]) {
+        self.init(rawValue: Self.productionKey(goal: goal, symbols: symbols))
+    }
+
+    public init(_ production: Production) {
+        self.init(goal: production.goal, symbols: production.rule)
+    }
+
+    private static func productionKey(goal: NonTerminal, symbols: [Symbol]) -> String {
+        "production:\(frame(goal.name))->\(symbols.map { frame(symbolKey($0)) }.joined())"
+    }
+
+    private static func symbolKey(_ symbol: Symbol) -> String {
+        switch symbol {
+        case .terminal(let terminal): "terminal(\(terminal.incrementalIdentityKey))"
+        case .nonTerminal(let nonterminal): "nonterminal(\(frame(nonterminal.name)))"
+        case .metaSymbol(let meta): "meta(\(frame(meta.rawValue)))"
+        }
+    }
+
+    static func frame(_ value: String) -> String {
+        "\(value.utf8.count):\(value)"
+    }
+
     public init(from decoder: Decoder) throws {
         self.init(rawValue: try decoder.singleValueContainer().decode(String.self))
     }
@@ -26,6 +52,22 @@ public struct GrammarProductionID: RawRepresentable, Hashable, Codable, Sendable
     public func encode(to encoder: Encoder) throws {
         var container = encoder.singleValueContainer()
         try container.encode(rawValue)
+    }
+}
+
+extension Terminal {
+    var incrementalIdentityKey: String {
+        switch self {
+        case .string(let value): "string:\(GrammarProductionID.frame(value))"
+        case .stringList(let values):
+            "list:" + values.map(GrammarProductionID.frame).joined()
+        case .characterRange(let range):
+            "range:\(GrammarProductionID.frame(String(range.lowerBound)))"
+                + GrammarProductionID.frame(String(range.upperBound))
+        case .regularExpression(let expression):
+            "regex:\(GrammarProductionID.frame(expression.pattern))"
+        case .meta(let value): "meta:\(GrammarProductionID.frame(value.rawValue))"
+        }
     }
 }
 
