@@ -11,9 +11,9 @@ import Tokenizer
 import TerminalColors
 
 public struct ParserDiagnostic: Error {
-    let message: String
-    let token: Token
-    let location: SourceLocation
+    public let message: String
+    public let token: Token
+    public let location: SourceLocation
 }
 
 extension ParserDiagnostic:CustomStringConvertible {
@@ -86,8 +86,8 @@ struct DiagnosticReporter {
 // MARK: - Diagnostic Types
 
 public struct SourceLocation: CustomStringConvertible {
-    let line: Int
-    let column: Int
+    public let line: Int
+    public let column: Int
     public var description: String { return "Line \(line):\(column)" }
 }
 

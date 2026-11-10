@@ -137,6 +137,7 @@ public class GrammarParser {
     private var tokenizer: ParserInput<GrammarTokenizer>
     private var currentToken: Token
     private var source: String
+    private let reportsDiagnostics: Bool
 
     private var lexicalRules: [LexicalRuleDefinition] = []
     public var lexicalSpecification: LexicalSpecification {
@@ -150,7 +151,8 @@ public class GrammarParser {
     // ebnf/wsn or bnf notation?
     public private(set) var isExtended: Bool = false
     
-    public init(grammar input: String, logging: GrammarLogging = .disabled) {
+    public init(grammar input: String, logging: GrammarLogging = .disabled,
+                reportsDiagnostics: Bool = true) {
         self.tokenizer = ParserInput(GrammarTokenizer(
             input,
             extraSymbols: Set<String>(symbols),
@@ -158,6 +160,7 @@ public class GrammarParser {
         self.diagnosticReporter = DiagnosticReporter(source: input)
         self.source = input
         self.logging = logging
+        self.reportsDiagnostics = reportsDiagnostics
         
         // Get first token
         self.currentToken = tokenizer.get()
@@ -216,7 +219,7 @@ extension GrammarParser {
         }
         
         // Report all errors at once after parsing attempts are done
-        if !diagnostics.isEmpty {
+        if reportsDiagnostics && !diagnostics.isEmpty {
             diagnosticReporter.report(diagnostics: diagnostics)
         }
         

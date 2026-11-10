@@ -54,4 +54,13 @@ struct LexicalSpecificationTests {
         #expect(decoded.lexicalSpecification == .empty)
         #expect(decoded.productions == grammar.productions)
     }
+
+    @Test func grammarNotationPublishesOneSharedIncrementalVocabulary() {
+        let specification = GrammarNotationLexicalSpecification.shared
+
+        #expect(specification["DEFINE"]?.matcher
+            == .literals(["::=", ":=", "->", "="]))
+        #expect(specification["WHITESPACE"]?.channel == .trivia)
+        #expect(specification["REGEX"]?.channel == .significant)
+    }
 }
