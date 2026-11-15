@@ -37,6 +37,7 @@ public struct StandardNotation {
         var start: String = ""                          // generic grammar only
         var empty: String = "ε"                         // generic grammar only
         var tokens: [String: Terminal] = [:]
+        var generatedOrdinal = 0
         
         func addProduction(goal: NonTerminal, rule: [Symbol]) {
             let prod = Production(goal: goal, rule: rule)
@@ -47,11 +48,12 @@ public struct StandardNotation {
         /// based on the given suggestion.
         /// Note: '@' denotes internal/synthetic
         func generateNonterminal(withPrefix prefix: String, nonTerminals: Set<NonTerminal>) -> NonTerminal {
-            var symbol = "@\(prefix)_\(Counter.next())"
-            while nonTerminals.contains(NonTerminal(name: symbol)) {
-                symbol = "@\(prefix)_\(Counter.next())"
-            }
-            return NonTerminal(name: symbol)
+            var candidate: NonTerminal
+            repeat {
+                generatedOrdinal += 1
+                candidate = NonTerminal(name: "@\(prefix)_\(generatedOrdinal)")
+            } while nonTerminals.contains(candidate)
+            return candidate
         }
 
         /// Converts an EBNF expression into a linear list of Symbols.
